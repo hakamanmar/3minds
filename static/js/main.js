@@ -88,8 +88,9 @@ class Router {
                             ${i18n.t('admin_panel')}
                         </button>
                     ` : ''}
-                    <button class="btn btn-primary" style="padding: 0.5rem 1rem;" onclick="window.auth.logout()">
+                    <button class="btn btn-primary logout-btn-styles" onclick="window.auth.logout()">
                         <i class="ph ph-sign-out"></i>
+                        <span>${i18n.t('logout')}</span>
                     </button>
                 </div>
             `;
