@@ -1,5 +1,6 @@
-import { api } from '../api.js';
+import { api, auth } from '../api.js';
 import { i18n } from '../i18n.js';
+import { UI } from '../ui.js';
 
 const SubjectPage = async (params) => {
     let subject = null;
@@ -24,6 +25,9 @@ const SubjectPage = async (params) => {
         </div>`;
     }
 
+    const user = auth.getUser();
+    const isAdmin = user && user.role === 'admin';
+
     return `
         <div class="header-section mb-4">
             <button class="btn" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; border: 1px solid var(--border);">
@@ -47,10 +51,20 @@ const SubjectPage = async (params) => {
                 </div>
             ` : `
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    ${lessons.map(lesson => `
-                        <div class="lesson-item" style="padding: 1.5rem; border: 1px solid var(--border); border-radius: 12px; 
+                    ${lessons.map(lesson => {
+                        // تحويل رابط Google Drive للتنزيل المباشر
+                        let downloadUrl = lesson.url;
+                        if (lesson.url.includes('drive.google.com')) {
+                            const fileIdMatch = lesson.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                            if (fileIdMatch) {
+                                downloadUrl = `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+                            }
+                        }
+                        
+                        return `
+                        <div class="lesson-item" data-id="${lesson.id}" style="padding: 1.5rem; border: 1px solid var(--border); border-radius: 12px; 
                                                         display: flex; justify-content: space-between; align-items: center;
-                                                        transition: all 0.3s ease; cursor: pointer;"
+                                                        transition: all 0.3s ease;"
                              onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='translateY(-2px)';"
                              onmouseout="this.style.borderColor='var(--border)'; this.style.transform='translateY(0)';">
                             <div style="display: flex; align-items: center; gap: 1rem;">
@@ -63,18 +77,51 @@ const SubjectPage = async (params) => {
                                     </p>
                                 </div>
                             </div>
-                            <a href="${lesson.url}" target="_blank" class="btn btn-primary" 
-                               style="display: flex; align-items: center; gap: 8px; text-decoration: none;"
-                               onclick="event.stopPropagation();">
-                                <i class="ph ph-arrow-square-out"></i>
-                                <span>فتح</span>
-                            </a>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                ${lesson.type !== 'Video' ? `
+                                    <a href="${downloadUrl}" download class="btn" 
+                                       style="display: flex; align-items: center; gap: 8px; text-decoration: none; border: 1px solid var(--border);">
+                                        <i class="ph ph-download-simple"></i>
+                                        <span>تنزيل</span>
+                                    </a>
+                                ` : ''}
+                                <a href="${lesson.url}" target="_blank" class="btn btn-primary" 
+                                   style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                                    <i class="ph ph-arrow-square-out"></i>
+                                    <span>فتح</span>
+                                </a>
+                                ${isAdmin ? `
+                                    <button class="btn delete-lesson-btn" data-id="${lesson.id}" 
+                                            style="color: #ef4444; display: flex; align-items: center; gap: 8px; border: 1px solid #ef4444;">
+                                        <i class="ph ph-trash"></i>
+                                        <span>حذف</span>
+                                    </button>
+                                ` : ''}
+                            </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `}
         </div>
     `;
+};
+
+SubjectPage.init = (params) => {
+    // حذف الدرس (للأدمن فقط)
+    document.querySelectorAll('.delete-lesson-btn').forEach(btn => {
+        btn.onclick = async () => {
+            if (confirm('هل أنت متأكد من حذف هذا الدرس؟')) {
+                const lessonId = btn.dataset.id;
+                try {
+                    await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE' });
+                    UI.toast('تم الحذف بنجاح');
+                    window.router.resolve();
+                } catch (e) {
+                    UI.toast('حدث خطأ أثناء الحذف', 'error');
+                }
+            }
+        };
+    });
 };
 
 export default SubjectPage;
