@@ -327,3 +327,19 @@ input:focus {
     text-decoration: none;
     font-weight: 600;
 }
+.logout-btn-styles {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 16px !important;
+    background: var(--primary) !important;
+    color: white !important;
+    border-radius: 50px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    min-width: fit-content !important;
+}
+
+.logout-btn-styles i {
+    font-size: 1.2rem;
+}
