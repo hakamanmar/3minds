@@ -29,8 +29,9 @@ const AdminPage = async () => {
             <div class="card">
                 <div class="flex-between mb-4">
                     <h3>${i18n.t('subjects')}</h3>
-                    <button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem;">
+                    <button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
                         <i class="ph ph-plus"></i>
+                        <span>إضافة مادة</span>
                     </button>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
@@ -38,11 +39,11 @@ const AdminPage = async () => {
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
                             <div class="flex-between">
                                 <strong>${s.title} (${s.code})</strong>
-                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem;">
+                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 4px;">
                                     <i class="ph ph-file-plus"></i> أضف درس
                                 </button>
                             </div>
-                            <button class="btn delete-subject-btn mt-2" data-id="${s.id}" style="color: #ef4444; font-size: 0.8rem;">
+                            <button class="btn delete-subject-btn mt-2" data-id="${s.id}" style="color: #ef4444; font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
                                 <i class="ph ph-trash"></i> حذف المادة
                             </button>
                         </div>
@@ -54,8 +55,9 @@ const AdminPage = async () => {
             <div class="card">
                 <div class="flex-between mb-4">
                     <h3>${i18n.t('manage_students')}</h3>
-                    <button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem;">
+                    <button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
                         <i class="ph ph-user-plus"></i>
+                        <span>إضافة طالب</span>
                     </button>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
