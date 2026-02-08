@@ -35,10 +35,15 @@ const AdminPage = async () => {
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${subjects.map(s => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border);">
-                            <span>${s.title} (${s.code})</span>
-                            <button class="btn delete-subject-btn" data-id="${s.id}" style="color: #ef4444;">
-                                <i class="ph ph-trash"></i>
+                        <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
+                            <div class="flex-between">
+                                <strong>${s.title} (${s.code})</strong>
+                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem;">
+                                    <i class="ph ph-file-plus"></i> أضف درس
+                                </button>
+                            </div>
+                            <button class="btn delete-subject-btn mt-2" data-id="${s.id}" style="color: #ef4444; font-size: 0.8rem;">
+                                <i class="ph ph-trash"></i> حذف المادة
                             </button>
                         </div>
                     `).join('')}
@@ -79,6 +84,43 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
+    // إضافة درس/ملف جديد
+    document.querySelectorAll('.add-lesson-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const subjectId = btn.dataset.id;
+            const content = `
+                <input type="text" id="lesson-title" placeholder="عنوان الدرس (مثلاً: المحاضرة الأولى)" class="mb-4" />
+                <input type="text" id="lesson-url" placeholder="رابط الملف (Google Drive أو YouTube)" class="mb-4" />
+                <select id="lesson-type" class="mb-4" style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid var(--border);">
+                    <option value="PDF">كتاب / ملزمة (PDF)</option>
+                    <option value="Video">فيديو (YouTube/Drive)</option>
+                </select>
+            `;
+            const data = await UI.modal('إضافة درس جديد', content, async () => {
+                const title = document.getElementById('lesson-title').value;
+                const url = document.getElementById('lesson-url').value;
+                const type = document.getElementById('lesson-type').value;
+                if (!title || !url) {
+                    UI.toast('يرجى ملء جميع الحقول', 'error');
+                    return false;
+                }
+                try {
+                    await fetch('/api/admin/add-lesson', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ subject_id: subjectId, title, url, type })
+                    });
+                    UI.toast('تمت الإضافة بنجاح');
+                    return true;
+                } catch (e) {
+                    UI.toast('حدث خطأ', 'error');
+                    return false;
+                }
+            });
+            if (data) window.router.resolve();
+        };
+    });
+
     // Add Subject
     const addSubjectBtn = document.getElementById('add-subject-btn');
     if (addSubjectBtn) {
@@ -159,7 +201,6 @@ AdminPage.init = () => {
             const data = await UI.modal(i18n.t('change_pw_title'), content, async () => {
                 const newPw = document.getElementById('force-new-pw').value;
                 if (!newPw) return false;
-                // We use changePassword route as admin can also reset others
                 await api.changePassword(id, newPw);
                 UI.toast(i18n.t('success'));
                 return true;
