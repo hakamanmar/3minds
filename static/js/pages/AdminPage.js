@@ -19,9 +19,15 @@ const AdminPage = async () => {
     }
 
     return `
-        <div class="header-section mb-4">
-            <h1>${i18n.t('admin_panel')}</h1>
-            <p>System Architecture & Cybersecurity Controls</p>
+        <div class="header-section mb-4" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>${i18n.t('admin_panel')}</h1>
+                <p>System Architecture & Cybersecurity Controls</p>
+            </div>
+            <button class="btn" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);">
+                <i class="ph ph-house"></i>
+                <span>الصفحة الرئيسية</span>
+            </button>
         </div>
 
         <div class="grid-auto-fit" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
@@ -35,6 +41,7 @@ const AdminPage = async () => {
                     </button>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    ${subjects.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد مواد</p>' : ''}
                     ${subjects.map(s => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
                             <div class="flex-between">
@@ -61,6 +68,7 @@ const AdminPage = async () => {
                     </button>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    ${users.filter(u => u.role === 'student').length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا يوجد طلاب</p>' : ''}
                     ${users.filter(u => u.role === 'student').map(u => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                             <div class="flex-between">
