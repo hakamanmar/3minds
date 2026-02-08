@@ -25,14 +25,17 @@ def init_db():
     c.close()
     conn.close()
 
-try: init_db()
-except: pass
+try: 
+    init_db()
+except: 
+    pass
 
 @app.route('/')
 @app.route('/login')
 @app.route('/admin')
 @app.route('/subjects')
-def index():
+@app.route('/subject/<int:id>')
+def index(id=None):
     return render_template('index.html')
 
 @app.route('/api/login', methods=['POST'])
@@ -67,15 +70,24 @@ def handle_subjects():
     conn.close()
     return jsonify([dict(s) for s in subs])
 
-@app.route('/api/users', methods=['GET'])
-def get_users():
+@app.route('/api/subjects/<int:id>', methods=['GET', 'DELETE'])
+def handle_subject(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    c.execute('SELECT id, email, role, device_id FROM users')
-    users = c.fetchall()
+    
+    if request.method == 'DELETE':
+        c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
+        c.execute('DELETE FROM subjects WHERE id = %s', (id,))
+        conn.commit()
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+    
+    c.execute('SELECT * FROM subjects WHERE id = %s', (id,))
+    subject = c.fetchone()
     c.close()
     conn.close()
-    return jsonify([dict(u) for u in users])
+    return jsonify(dict(subject) if subject else {})
 
 @app.route('/api/subjects/<int:id>/lessons', methods=['GET'])
 def get_lessons(id):
@@ -94,6 +106,55 @@ def add_lesson():
     c = conn.cursor()
     c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
               (data['subject_id'], data['title'], data['url'], data['type']))
+    conn.commit()
+    c.close()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    conn = get_db()
+    c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    c.execute('SELECT id, email, role, device_id FROM users')
+    users = c.fetchall()
+    c.close()
+    conn.close()
+    return jsonify([dict(u) for u in users])
+
+@app.route('/api/admin/add-student', methods=['POST'])
+def add_student():
+    data = request.json
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)',
+                  (data['email'], generate_password_hash(data['password']), 'student'))
+        conn.commit()
+        return jsonify({'success': True})
+    except:
+        return jsonify({'success': False, 'error': 'Exists'})
+    finally:
+        c.close()
+        conn.close()
+
+@app.route('/api/admin/reset-device', methods=['POST'])
+def reset_device():
+    data = request.json
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('UPDATE users SET device_id = NULL WHERE id = %s', (data['user_id'],))
+    conn.commit()
+    c.close()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/api/change-password', methods=['POST'])
+def change_password():
+    data = request.json
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('UPDATE users SET password = %s WHERE id = %s', 
+              (generate_password_hash(data['password']), data['user_id']))
     conn.commit()
     c.close()
     conn.close()
