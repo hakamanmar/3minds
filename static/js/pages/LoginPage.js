@@ -20,8 +20,9 @@ const LoginPage = async () => {
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">${i18n.t('login')}</button>
                     
-                    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.8rem; color: var(--text-muted);">
-                        <p>Demo: admin@uni.edu / admin123</p>
+                                      <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
+                        <p>Developed by:</p>
+                        <p style="color: var(--primary);">alhakam anmar & mena sabri & danya majed</p>
                     </div>
                 </form>
             </div>
@@ -59,3 +60,4 @@ LoginPage.init = () => {
 };
 
 export default LoginPage;
+
