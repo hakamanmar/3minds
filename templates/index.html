@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Hub | Student Platform</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- Icons (Phosphor Icons - clean & modern) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="main-header">
+            <a href="#" class="logo" onclick="window.router.navigate('/')">
+                <i class="ph ph-graduation-cap"></i>
+                AcademicHub
+            </a>
+            <nav id="nav-menu">
+                <!-- Injected via JS based on Auth -->
+            </nav>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Dynamic Content -->
+            <div class="loader-container" style="display:grid; place-items:center; height: 50vh;">
+                <p>Loading...</p>
+            </div>
+        </main>
+
+        <!-- Toast Notifications Container -->
+        <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;"></div>
+    </div>
+
+    <!-- Main Script -->
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
