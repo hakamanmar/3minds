@@ -161,4 +161,14 @@ def change_password():
     return jsonify({'success': True})
 
 if __name__ == '__main__':
+    @app.route('/api/lessons/<int:id>', methods=['DELETE'])
+def delete_lesson(id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('DELETE FROM lessons WHERE id = %s', (id,))
+    conn.commit()
+    c.close()
+    conn.close()
+    return jsonify({'success': True})
     app.run()
+
