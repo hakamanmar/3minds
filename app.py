@@ -1,23 +1,18 @@
 import os
 import sqlite3
-import json
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-import time
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+app = Flask(__name__, static_url_path='/static')
 app.config['SECRET_KEY'] = 'dev-secret-key'
 
-# Vercel fix: Use /tmp for everything because root is read-only
+# Vercel Temporary Folders
 DB_PATH = '/tmp/academic.db'
 UPLOAD_FOLDER = '/tmp/uploads'
 
 if not os.path.exists(UPLOAD_FOLDER):
-    try:
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    except:
-        pass
+    try: os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    except: pass
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -34,11 +29,10 @@ def init_db():
     c.execute('SELECT count(*) FROM users')
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (email, password, role) VALUES (?, ?, ?)', ('admin@uni.edu', generate_password_hash('admin123'), 'admin'))
-        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (?, ?, ?, ?)', ('Computer Science', 'Intro', 'CS101', '#4F46E5'))
+        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (?, ?, ?, ?)', ('Computer Science', 'Intro to CS', 'CS101', '#4F46E5'))
     conn.commit()
     conn.close()
 
-# Initialize DB on first request
 @app.before_request
 def startup():
     if not os.path.exists(DB_PATH):
@@ -65,7 +59,9 @@ def get_subjects():
     conn.close()
     return jsonify([dict(s) for s in subjects])
 
-# Add other basic routes if needed, or keep it minimal to test
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
 
+if __name__ == '__main__':
+    app.run()
