@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import time
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = 'dev-secret-key'
 
 # Vercel fix: Use /tmp for everything because root is read-only
@@ -68,3 +68,4 @@ def get_subjects():
 # Add other basic routes if needed, or keep it minimal to test
 if __name__ == '__main__':
     app.run(debug=True)
+
