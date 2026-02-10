@@ -1,157 +1,98 @@
-import { api, auth } from '../api.js';
+/* AdminPage.js - Includes Student Deletion UI */
+import { api } from '../api.js';
 import { i18n } from '../i18n.js';
 import { UI } from '../ui.js';
 
 const AdminPage = async () => {
-    let subjects = [];
-    let users = [];
-    let announcements = [];
+    let subjects = [], users = [], announcements = [];
     try {
         subjects = await api.getSubjects();
         users = await api.getUsers();
         announcements = await api.getAnnouncements();
     } catch (e) {
-        console.error(e);
-        return `<div class="card error-card" style="padding: 2rem; text-align: center; color: #ef4444;">
-            <h3>${i18n.t('error')}</h3>
-            <p>${e.message || 'Check Server Logs'}</p>
-        </div>`;
+        return `<div class="card error-card" style="padding: 2rem; color: #ef4444;"><h3>${i18n.t('error')}</h3><p>${e.message}</p></div>`;
     }
 
-    // دوال الحذف والتعديل
+    // Global Functions for Buttons
     window.deleteAnnouncement = async (id) => {
-        if (confirm('هل تريد حذف هذا التبليغ؟')) {
-            await api.deleteAnnouncement(id);
-            location.reload(); 
-        }
+        if(confirm('حذف التبليغ؟')) { await api.deleteAnnouncement(id); location.reload(); }
     };
-
     window.editAnnouncement = async (id, content) => {
         const html = `<textarea id="edit-ann-content" style="height: 100px;">${content}</textarea>`;
         const data = await UI.modal('تعديل التبليغ', html, async () => {
             const newText = document.getElementById('edit-ann-content').value;
             if (!newText) return false;
             await api.updateAnnouncement(id, newText);
-            UI.toast('تم التعديل');
             return true;
         });
-        if (data) location.reload();
+        if(data) location.reload();
+    };
+    
+    // NEW: Delete Student Function
+    window.deleteStudent = async (id, email) => {
+        if(confirm(`هل أنت متأكد من حذف الطالب: ${email}؟\nسيتم حذفه نهائياً.`)) {
+            await api.deleteUser(id);
+            location.reload();
+        }
     };
 
     return `
         <div class="header-section mb-4" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h1>${i18n.t('admin_panel')}</h1>
-                <p>System Architecture & Cybersecurity Controls</p>
-            </div>
-            <button class="btn" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);">
-                <span>🏠 الصفحة الرئيسية</span>
-            </button>
+            <div><h1>${i18n.t('admin_panel')}</h1><p>System Architecture & Cybersecurity Controls</p></div>
+            <button class="btn" onclick="window.router.navigate('/')"><span>🏠 الصفحة الرئيسية</span></button>
         </div>
 
         <div class="grid-auto-fit" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
             
-            <!-- قسم التبليغات -->
+            <!-- Announcements -->
             <div class="card" style="grid-column: span 2;">
                 <div class="flex-between mb-4">
-                    <h3>📢 التبليغات والإعلانات</h3>
+                    <h3>📢 التبليغات</h3>
                     <div style="display: flex; gap: 10px;">
-                        <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
-                            <span>➕ تبليغ جديد</span>
-                        </button>
+                        <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;"><span>➕ جديد</span></button>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                    ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
                     ${announcements.map(a => `
                         <div style="padding: 1rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: center;">
-                            <div style="flex: 1;">
-                                <p style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-main); font-weight: 500;">${a.content}</p>
-                                <span style="font-size: 0.85rem; color: var(--text-muted);">
-                                    🕒 ${a.created_at || 'الآن'}
-                                </span>
-                            </div>
-                            <!-- أزرار الحذف والتعديل (واضحة جداً) -->
-                            <div style="display: flex; gap: 10px; margin-right: 15px;">
-                                <button type="button" 
-                                        onclick="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" 
-                                        style="background: #e0e7ff; border: 1px solid #6366f1; border-radius: 5px; cursor: pointer; color: #4338ca; padding: 5px 10px; font-size: 1rem;" 
-                                        title="تعديل">
-                                    ✏️ تعديل
-                                </button>
-                                <button type="button" 
-                                        onclick="window.deleteAnnouncement('${a.id}')" 
-                                        style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 5px; cursor: pointer; color: #b91c1c; padding: 5px 10px; font-size: 1rem;" 
-                                        title="حذف">
-                                    🗑️ حذف
-                                </button>
+                            <div style="flex: 1;"><p style="margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 500;">${a.content}</p><span style="font-size: 0.85rem; color: var(--text-muted);">🕒 ${a.created_at || 'الآن'}</span></div>
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" style="background: #e0e7ff; border: 1px solid #6366f1; border-radius: 5px; color: #4338ca; padding: 5px 10px;">✏️</button>
+                                <button onclick="window.deleteAnnouncement('${a.id}')" style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 5px; color: #b91c1c; padding: 5px 10px;">🗑️</button>
                             </div>
                         </div>
                     `).join('')}
-                    
-                    <!-- زر الطوارئ الأحمر (يمسح كل التبليغات بضغطة وحدة) -->
-                     ${announcements.length > 0 ? `
-                        <div style="margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
-                             <button onclick="
-                                if(confirm('تحذير: هل تريد مسح جميع التبليغات؟')) {
-                                    fetch('/api/announcements').then(r=>r.json()).then(data => {
-                                        data.forEach(ann => fetch('/api/announcements?id=' + ann.id, {method:'DELETE'}));
-                                        setTimeout(() => location.reload(), 1000);
-                                    });
-                                }
-                            " class="btn" style="background: #ef4444; color: white; border: none; padding: 0.8rem 2rem; font-size: 1rem; border-radius: 8px;">
-                                🧨 ⚠️ حذف جميع التبليغات (طوارئ)
-                            </button>
-                        </div>
-                     ` : ''}
+                    ${announcements.length > 0 ? `<div style="margin-top:20px; text-align:center;"><button onclick="if(confirm('حذف الكل؟')){fetch('/api/announcements').then(r=>r.json()).then(d=>{d.forEach(a=>fetch('/api/announcements?id='+a.id,{method:'DELETE'}));setTimeout(()=>location.reload(),1000)})} " class="btn" style="background:#ef4444;color:white;padding:0.5rem 2rem;">⚠️ حذف الكل</button></div>` : ''}
                 </div>
             </div>
 
-            <!-- بقية الأقسام (المواد) -->
+            <!-- Subjects -->
             <div class="card">
-                <div class="flex-between mb-4">
-                    <h3>${i18n.t('subjects')}</h3>
-                    <button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;">
-                        <span>➕ إضافة مادة</span>
-                    </button>
-                </div>
+                <div class="flex-between mb-4"><h3>${i18n.t('subjects')}</h3><button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;"><span>➕ مادة</span></button></div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${subjects.map(s => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
-                            <div class="flex-between">
-                                <strong>${s.title} (${s.code})</strong>
-                                <div>
-                                    <button class="btn edit-subject-btn" data-id="${s.id}" data-title="${s.title}" data-code="${s.code}" data-desc="${s.description||''}" data-color="${s.color||'#4f46e5'}" style="margin-left:5px;">✏️</button>
-                                    <button class="btn delete-subject-btn" data-id="${s.id}" style="color: #ef4444;">🗑️</button>
-                                </div>
-                            </div>
-                            <div style="margin-top: 1rem;">
-                                <button class="btn add-lesson-btn" data-id="${s.id}" style="width: 100%; border: 1px dashed var(--primary); text-align: center;">
-                                    ➕ أضف درس
-                                </button>
-                            </div>
+                            <div class="flex-between"><strong>${s.title} (${s.code})</strong><div><button class="btn edit-sub-btn" data-id="${s.id}" data-t="${s.title}" data-c="${s.code}" data-d="${s.description||''}" data-col="${s.color||'#4f46e5'}">✏️</button><button class="btn del-sub-btn" data-id="${s.id}" style="color: #ef4444;">🗑️</button></div></div>
+                            <div style="margin-top: 1rem;"><button class="btn add-lesson-btn" data-id="${s.id}" style="width: 100%; border: 1px dashed var(--primary);">➕ أضف درس</button></div>
                         </div>
                     `).join('')}
                 </div>
             </div>
 
-            <!-- الطلاب -->
+            <!-- Students -->
             <div class="card">
-                <div class="flex-between mb-4">
-                    <h3>${i18n.t('manage_students')}</h3>
-                    <button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;">
-                        <span>➕ إضافة طالب</span>
-                    </button>
-                </div>
-                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div class="flex-between mb-4"><h3>${i18n.t('manage_students')}</h3><button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;"><span>➕ طالب</span></button></div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${users.filter(u => u.role === 'student').map(u => `
-                        <div style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 8px;">
                             <div class="flex-between">
                                 <strong>${u.email}</strong>
                                 <span class="badge" style="background: ${u.device_id ? '#10b981' : '#f59e0b'}; color: white;">${u.device_id ? 'Linked' : 'Pending'}</span>
                             </div>
-                            <div style="margin-top: 1rem;">
-                                <button class="btn reset-device-btn" data-id="${u.id}" style="border: 1px solid var(--border);">🔄 Reset Device</button>
+                            <div style="margin-top: 1rem; display: flex; gap: 5px;">
+                                <button class="btn reset-device-btn" data-id="${u.id}" style="border: 1px solid var(--border); flex: 1;">🔄 Reset Device</button>
+                                <!-- زر حذف الطالب الجديد -->
+                                <button onclick="window.deleteStudent('${u.id}', '${u.email}')" class="btn" style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c;">🗑️ حذف</button>
                             </div>
                         </div>
                     `).join('')}
@@ -162,106 +103,62 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
-    // Add Announcement
-    const addAnnBtn = document.getElementById('add-announcement-btn');
-    if (addAnnBtn) {
-        addAnnBtn.onclick = async () => {
-            const content = `<textarea id="ann-content" placeholder="اكتب نص التبليغ هنا..." style="height: 100px;"></textarea>`;
-            const data = await UI.modal('إضافة تبليغ جديد', content, async () => {
-                const text = document.getElementById('ann-content').value;
-                if (!text) return false;
-                await api.addAnnouncement(text);
-                UI.toast('تم النشر');
-                return true;
-            });
-            if (data) window.router.resolve();
-        };
-    }
+    // Add Announce
+    const addAnn = document.getElementById('add-announcement-btn');
+    if(addAnn) addAnn.onclick = async () => {
+        const d = await UI.modal('تبليغ جديد', `<textarea id="ac" style="height:100px"></textarea>`, async()=>{
+            const t = document.getElementById('ac').value; if(!t)return false; await api.addAnnouncement(t); return true;
+        });
+        if(d) location.reload();
+    };
 
-    // Subject Logic
-    document.querySelectorAll('.edit-subject-btn').forEach(btn => {
-        btn.onclick = async () => {
-            const { id, title, code, desc, color } = btn.dataset;
-            const content = `
-                <input type="text" id="edit-sub-title" value="${title}" class="mb-4" />
-                <input type="text" id="edit-sub-code" value="${code}" class="mb-4" />
-                <textarea id="edit-sub-desc" class="mb-4">${desc}</textarea>
-                <input type="color" id="edit-sub-color" value="${color}" style="height: 50px;" />
-            `;
-            const data = await UI.modal('تعديل المادة', content, async () => {
-                const t = document.getElementById('edit-sub-title').value;
-                const c = document.getElementById('edit-sub-code').value;
-                const d = document.getElementById('edit-sub-desc').value;
-                const col = document.getElementById('edit-sub-color').value;
-                if (!t) return false;
-                await api.updateSubject(id, { title: t, code: c, description: d, color: col });
-                UI.toast(i18n.t('success'));
-                return true;
-            });
-            if (data) window.router.resolve();
-        };
+    // Add Subject
+    const addSub = document.getElementById('add-subject-btn');
+    if(addSub) addSub.onclick = async () => {
+        const c = `<input id="nst" placeholder="Name" class="mb-4"/><input id="nsc" placeholder="Code" class="mb-4"/><textarea id="nsd" placeholder="Desc" class="mb-4"></textarea><input type="color" id="nsco" value="#4f46e5" style="height:50px"/>`;
+        const d = await UI.modal('مادة جديدة', c, async()=>{
+             const t=document.getElementById('nst').value, co=document.getElementById('nsc').value, de=document.getElementById('nsd').value, col=document.getElementById('nsco').value;
+             if(!t)return false; await api.addSubject({title:t,code:co,description:de,color:col}); return true;
+        });
+        if(d) location.reload();
+    };
+
+    // Add Student
+    const addStd = document.getElementById('add-student-btn');
+    if(addStd) addStd.onclick = async () => {
+        const d = await UI.modal('طالب جديد', `<input id="nse" placeholder="Email" class="mb-4"/><input type="password" id="nsp" placeholder="Pass"/>`, async()=>{
+            const e=document.getElementById('nse').value, p=document.getElementById('nsp').value; if(!e||!p)return false;
+            await api.addStudent(e,p); return true;
+        });
+        if(d) location.reload();
+    };
+
+    // Edit/Delete Subject Listeners
+    document.querySelectorAll('.edit-sub-btn').forEach(b => b.onclick = async () => {
+        const {id,t,c:co,d:de,col} = b.dataset;
+        const ht = `<input id="est" value="${t}" class="mb-4"/><input id="esc" value="${co}" class="mb-4"/><textarea id="esd" class="mb-4">${de}</textarea><input type="color" id="esco" value="${col}" style="height:50px"/>`;
+        const r = await UI.modal('تعديل مادة', ht, async()=>{
+            const nt=document.getElementById('est').value, nc=document.getElementById('esc').value, nd=document.getElementById('esd').value, ncol=document.getElementById('esco').value;
+            await api.updateSubject(id, {title:nt,code:nc,description:nd,color:ncol}); return true;
+        });
+        if(r) location.reload();
     });
-
-    document.querySelectorAll('.delete-subject-btn').forEach(btn => {
-        btn.onclick = async () => {
-            if (confirm(i18n.t('confirm_delete'))) {
-                await api.deleteSubject(btn.dataset.id);
-                window.router.resolve();
-            }
-        };
-    });
-
-    if (document.getElementById('add-subject-btn')) {
-        document.getElementById('add-subject-btn').onclick = async () => {
-             const content = `<input type="text" id="new-sub-title" placeholder="${i18n.t('title')}" class="mb-4" /><input type="text" id="new-sub-code" placeholder="${i18n.t('code')}" class="mb-4" /><textarea id="new-sub-desc" placeholder="${i18n.t('description')}" class="mb-4"></textarea><input type="color" id="new-sub-color" value="#4f46e5" style="height: 50px;" />`;
-            const data = await UI.modal(i18n.t('add_subject'), content, async () => {
-                const title = document.getElementById('new-sub-title').value;
-                const code = document.getElementById('new-sub-code').value;
-                const description = document.getElementById('new-sub-desc').value;
-                const color = document.getElementById('new-sub-color').value;
-                if (!title || !code) return false;
-                await api.addSubject({ title, code, description, color });
-                UI.toast(i18n.t('success'));
-                return true;
-            });
-            if (data) window.router.resolve();
-        };
-    }
     
-    document.querySelectorAll('.add-lesson-btn').forEach(btn => {
-        btn.onclick = async () => {
-            const subjectId = btn.dataset.id;
-            const content = `<input type="text" id="lesson-title" placeholder="عنوان الدرس" class="mb-4" /><input type="text" id="lesson-url" placeholder="رابط الملف/الفيديو" class="mb-4" /><select id="lesson-type" class="mb-4"><option value="PDF">ملف</option><option value="Video">فيديو</option></select>`;
-            const data = await UI.modal('إضافة درس', content, async () => {
-                const title = document.getElementById('lesson-title').value;
-                const url = document.getElementById('lesson-url').value;
-                const type = document.getElementById('lesson-type').value;
-                if (!title || !url) return false;
-                await fetch('/api/admin/add-lesson', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject_id: subjectId, title, url, type }) });
-                return true;
-            });
-            if (data) { UI.toast('تمت الإضافة'); window.router.resolve(); }
-        };
+    document.querySelectorAll('.del-sub-btn').forEach(b => b.onclick = async () => {
+        if(confirm('حذف المادة؟')) { await api.deleteSubject(b.dataset.id); location.reload(); }
     });
 
-    if (document.getElementById('add-student-btn')) {
-        document.getElementById('add-student-btn').onclick = async () => {
-             const content = `<input type="text" id="new-std-email" placeholder="student.id" class="mb-4" /><input type="password" id="new-std-pass" placeholder="Password" />`;
-             const data = await UI.modal(i18n.t('manage_students'), content, async () => {
-                const e = document.getElementById('new-std-email').value;
-                const p = document.getElementById('new-std-pass').value;
-                if(!e || !p) return false;
-                await api.addStudent(e, p);
-                UI.toast('Success');
-                return true;
-            });
-            if (data) window.router.resolve();
-        };
-    }
-
-    document.querySelectorAll('.reset-device-btn').forEach(btn => {
-        btn.onclick = async () => { if(confirm('Reset Device?')) { await api.resetDevice(btn.dataset.id); window.router.resolve(); } };
+    // Add Lesson
+    document.querySelectorAll('.add-lesson-btn').forEach(b => b.onclick = async () => {
+        const sid = b.dataset.id;
+        const d = await UI.modal('درس جديد', `<input id="lt" placeholder="Title" class="mb-4"/><input id="lu" placeholder="URL" class="mb-4"/><select id="lty"><option value="PDF">PDF</option><option value="Video">Video</option></select>`, async()=>{
+            const t=document.getElementById('lt').value, u=document.getElementById('lu').value, y=document.getElementById('lty').value; if(!t||!u)return false;
+            await fetch('/api/admin/add-lesson', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject_id:sid,title:t,url:u,type:y})}); return true;
+        });
+        if(d) { UI.toast('تمت الإضافة'); location.reload(); } 
     });
+
+    document.querySelectorAll('.reset-device-btn').forEach(b => b.onclick = async () => { if(confirm('Reset?')) { await api.resetDevice(b.dataset.id); location.reload(); } });
 };
 
 export default AdminPage;
