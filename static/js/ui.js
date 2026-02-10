@@ -1,3 +1,4 @@
+/* ui.js - Updated Logo Size */
 import { auth } from './api.js';
 import { i18n } from './i18n.js';
 
@@ -5,10 +6,10 @@ export const UI = {
     renderNavbar(user) {
         return `
             <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding: 0.5rem 0;">
-                <div class="logo" onclick="window.router.navigate('/')" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
-                    <!-- اللوجو المكبر والاسم -->
-                    <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 65px; object-fit: contain;">
-                    <span style="font-weight: 800; font-size: 1.6rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
+                <div class="logo" onclick="window.router.navigate('/')" style="cursor: pointer; display: flex; align-items: center; gap: 15px;">
+                    <!-- كبرت الارتفاع الى 80px -->
+                    <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 80px; object-fit: contain;">
+                    <span style="font-weight: 800; font-size: 1.8rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
                 </div>
                 
                 <div class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
@@ -26,7 +27,7 @@ export const UI = {
             </div>
         `;
     },
-
+    // ... (باقي الكود مثل المودال والتوست يبقى نفسه)
     modal(title, content, onConfirm) {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -45,37 +46,23 @@ export const UI = {
                 </div>
             `;
             document.body.appendChild(modal);
-
             const close = () => { modal.remove(); resolve(null); };
             modal.querySelector('.close-modal').onclick = close;
             modal.querySelector('.close-modal-btn').onclick = close;
-
-            const confirmBtn = modal.querySelector('.confirm-modal-btn');
-            if (confirmBtn) {
-                confirmBtn.onclick = async () => {
-                    const originalText = confirmBtn.innerText;
-                    confirmBtn.innerText = '...';
-                    confirmBtn.disabled = true;
-                    const result = await onConfirm();
-                    if (result) { modal.remove(); resolve(result); } 
-                    else { confirmBtn.innerText = originalText; confirmBtn.disabled = false; }
-                };
-            }
+            const cb = modal.querySelector('.confirm-modal-btn');
+            if (cb) cb.onclick = async () => {
+                const b = cb; const ot = b.innerText; b.innerText='...'; b.disabled=true;
+                const r = await onConfirm();
+                if(r) { modal.remove(); resolve(r); } else { b.innerText=ot; b.disabled=false; }
+            };
         });
     },
-    
     toast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.style.cssText = `
-            position: fixed; bottom: 20px; right: 20px; 
-            padding: 1rem 1.5rem; background: ${type==='error'?'#ef4444':'#10b981'}; 
-            color: white; border-radius: 8px; z-index: 9999; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-weight: 500;
-            animation: slideIn 0.3s ease-out forwards;
-        `;
-        toast.innerText = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        const t = document.createElement('div');
+        t.className = `toast toast-${type}`;
+        t.style.cssText = `position:fixed;bottom:20px;right:20px;padding:1rem 1.5rem;background:${type==='error'?'#ef4444':'#10b981'};color:white;border-radius:8px;z-index:9999;box-shadow:0 4px 6px rgba(0,0,0,0.1);font-weight:500;animation:slideIn 0.3s ease-out forwards;`;
+        t.innerText = message;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
     }
 };
