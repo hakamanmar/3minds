@@ -4,30 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3Minds Platform</title>
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
-    
-    <!-- Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 <body>
     <div id="app" class="app-container">
-        <!-- Header -->
-        <header class="main-header" style="padding: 1rem 0;">
-            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 20px; text-decoration: none; color: inherit;">
-                <!-- كبرت الارتفاع إلى 120px -->
-                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 120px; object-fit: contain;"> 
-                <span style="font-weight: 800; font-size: 2.2rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
+        <header class="main-header">
+            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 15px; text-decoration: none; color: inherit;">
+                <!-- الارتفاع صار 95px للحاسبة، وبالموبايل راح يصغر تلقائياً للـ 70px -->
+                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 95px; object-fit: contain;"> 
+                <span style="font-weight: 800; font-size: 2rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
             </a>
-            <nav id="nav-menu">
-                <!-- Injected via JS -->
-            </nav>
+            <nav id="nav-menu"></nav>
         </header>
 
         <main id="main-content">
@@ -38,7 +27,6 @@
 
         <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;"></div>
     </div>
-
     <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
