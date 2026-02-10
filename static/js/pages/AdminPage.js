@@ -46,13 +46,26 @@ const AdminPage = async () => {
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
                             <div class="flex-between">
                                 <strong>${s.title} (${s.code})</strong>
-                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 4px;">
-                                    <i class="ph ph-file-plus"></i> أضف درس
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn edit-subject-btn" 
+                                            data-id="${s.id}" 
+                                            data-title="${s.title}"
+                                            data-code="${s.code}"
+                                            data-desc="${s.description || ''}"
+                                            data-color="${s.color || '#4f46e5'}"
+                                            style="color: var(--primary); border: 1px solid var(--border);">
+                                        <i class="ph ph-pencil-simple"></i>
+                                    </button>
+                                    <button class="btn delete-subject-btn" data-id="${s.id}" style="color: #ef4444; border: 1px solid #ef4444;">
+                                        <i class="ph ph-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top: 1rem;">
+                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 4px; border: 1px dashed var(--primary); width: 100%; justify-content: center;">
+                                    <i class="ph ph-plus"></i> أضف درس أو ملف
                                 </button>
                             </div>
-                            <button class="btn delete-subject-btn mt-2" data-id="${s.id}" style="color: #ef4444; font-size: 0.8rem; display: flex; align-items: center; gap: 4px;">
-                                <i class="ph ph-trash"></i> حذف المادة
-                            </button>
                         </div>
                     `).join('')}
                 </div>
@@ -94,40 +107,73 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
-    // إضافة درس/ملف جديد
-    document.querySelectorAll('.add-lesson-btn').forEach(btn => {
+    // Edit Subject (تعديل المادة)
+    document.querySelectorAll('.edit-subject-btn').forEach(btn => {
         btn.onclick = async () => {
-            const subjectId = btn.dataset.id;
+            const { id, title, code, desc, color } = btn.dataset;
             const content = `
-                <input type="text" id="lesson-title" placeholder="عنوان الدرس (مثلاً: المحاضرة الأولى)" class="mb-4" />
-                <input type="text" id="lesson-url" placeholder="رابط الملف (Google Drive أو YouTube)" class="mb-4" />
-                <select id="lesson-type" class="mb-4" style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid var(--border);">
-                    <option value="PDF">كتاب / ملزمة (PDF)</option>
-                    <option value="Video">فيديو (YouTube/Drive)</option>
-                </select>
+                <input type="text" id="edit-sub-title" value="${title}" placeholder="${i18n.t('title')}" class="mb-4" />
+                <input type="text" id="edit-sub-code" value="${code}" placeholder="${i18n.t('code')}" class="mb-4" />
+                <textarea id="edit-sub-desc" placeholder="${i18n.t('description')}" class="mb-4">${desc}</textarea>
+                <label style="display:block; margin-bottom:0.5rem;">لون المادة:</label>
+                <input type="color" id="edit-sub-color" value="${color}" style="height: 50px;" />
             `;
-            const data = await UI.modal('إضافة درس جديد', content, async () => {
-                const title = document.getElementById('lesson-title').value;
-                const url = document.getElementById('lesson-url').value;
-                const type = document.getElementById('lesson-type').value;
-                if (!title || !url) {
-                    UI.toast('يرجى ملء جميع الحقول', 'error');
-                    return false;
-                }
+            
+            const data = await UI.modal('تعديل المادة', content, async () => {
+                const newTitle = document.getElementById('edit-sub-title').value;
+                const newCode = document.getElementById('edit-sub-code').value;
+                const newDesc = document.getElementById('edit-sub-desc').value;
+                const newColor = document.getElementById('edit-sub-color').value;
+
+                if (!newTitle || !newCode) return false;
+                
                 try {
-                    await fetch('/api/admin/add-lesson', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ subject_id: subjectId, title, url, type })
+                    await api.updateSubject(id, { 
+                        title: newTitle, 
+                        code: newCode, 
+                        description: newDesc, 
+                        color: newColor 
                     });
-                    UI.toast('تمت الإضافة بنجاح');
+                    UI.toast(i18n.t('success'));
                     return true;
-                } catch (e) {
-                    UI.toast('حدث خطأ', 'error');
+                } catch(e) {
+                    UI.toast(i18n.t('error'), 'error');
                     return false;
                 }
             });
             if (data) window.router.resolve();
+        };
+    });
+
+    // Add Lesson
+    document.querySelectorAll('.add-lesson-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const subjectId = btn.dataset.id;
+            const content = `
+                <input type="text" id="lesson-title" placeholder="عنوان الدرس" class="mb-4" />
+                <input type="text" id="lesson-url" placeholder="رابط الملف/الفيديو" class="mb-4" />
+                <select id="lesson-type" class="mb-4" style="width:100%; padding:0.8rem;">
+                    <option value="PDF">ملف (PDF)</option>
+                    <option value="Video">فيديو</option>
+                </select>
+            `;
+            const data = await UI.modal('إضافة درس', content, async () => {
+                const title = document.getElementById('lesson-title').value;
+                const url = document.getElementById('lesson-url').value;
+                const type = document.getElementById('lesson-type').value;
+                if (!title || !url) return false;
+                
+                await fetch('/api/admin/add-lesson', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject_id: subjectId, title, url, type })
+                });
+                return true;
+            });
+            if (data) {
+                UI.toast('تمت الإضافة');
+                window.router.resolve();
+            }
         };
     });
 
@@ -158,7 +204,7 @@ AdminPage.init = () => {
     }
 
     // Add Student
-    document.getElementById('add-student-btn').onclick = async () => {
+    const addStudentHandler = async () => {
         const content = `
             <input type="text" name="email" id="new-std-email" placeholder="student.id" class="mb-4" />
             <input type="password" name="password" id="new-std-pass" placeholder="Temporary Password" />
@@ -180,6 +226,10 @@ AdminPage.init = () => {
         });
         if (data) window.router.resolve();
     };
+    
+    if (document.getElementById('add-student-btn')) {
+        document.getElementById('add-student-btn').onclick = addStudentHandler;
+    }
 
     // Reset Device
     document.querySelectorAll('.reset-device-btn').forEach(btn => {
