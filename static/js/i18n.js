@@ -1,7 +1,8 @@
+/* i18n.js - Updated Branding */
 export const translations = {
     ar: {
         dir: 'rtl',
-        logo: 'منصة الأكاديميا',
+        logo: '3Minds',
         login: 'تسجيل الدخول',
         logout: 'تسجيل الخروج',
         admin_panel: 'لوحة التحكم',
@@ -36,7 +37,7 @@ export const translations = {
     },
     en: {
         dir: 'ltr',
-        logo: 'AcademicHub',
+        logo: '3Minds',
         login: 'Login',
         logout: 'Logout',
         admin_panel: 'Admin Panel',
