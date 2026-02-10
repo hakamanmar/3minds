@@ -1,50 +1,45 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3Minds Academy</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- استخدام خط تجريبي جميل -->
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3Minds Platform</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 <body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="main-header">
+            <!-- اللوجو والاسم -->
+            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
+                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 65px; object-fit: contain;"> <!-- تكبير اللوجو -->
+                <span style="font-weight: 800; font-size: 1.6rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span> <!-- الاسم -->
+            </a>
+            <nav id="nav-menu">
+                <!-- Injected via JS based on Auth -->
+            </nav>
+        </header>
 
-    <!-- الهيدر -->
-    <header>
-        <div class="logo-container">
-            <img src="logo.png" alt="3Minds Logo" class="logo">
-            <h1>3Minds Academy</h1>
-        </div>
-        <nav>
-            <button id="telegramBtn" class="nav-btn">بوت التيليجرام</button>
-        </nav>
-    </header>
-
-    <!-- المحتوى الرئيسي -->
-    <main>
-        <section class="hero">
-            <h2>مرحباً بك في منصة 3Minds</h2>
-            <p>اختر المادة الدراسية للبدء</p>
-        </section>
-
-        <!-- شبكة المواد -->
-        <div class="grid-container" id="subjectsGrid">
-            <!-- سيتم تعبئة المواد هنا بواسطة JavaScript -->
-        </div>
-    </main>
-
-    <!-- نافذة منبثقة للمواد (Modal) -->
-    <div id="materialModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h2 id="modalTitle">اسم المادة</h2>
-            <div id="modalBody">
-                <p>جاري تحميل المحتوى...</p>
+        <main id="main-content">
+            <div class="loader-container" style="display:grid; place-items:center; height: 50vh;">
+                <p>Loading...</p>
             </div>
-        </div>
+        </main>
+
+        <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;"></div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Main Script -->
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
