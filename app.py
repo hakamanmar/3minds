@@ -1,4 +1,5 @@
 import os
+import requests
 import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, jsonify
@@ -219,3 +220,4 @@ def handle_announcements():
 
 if __name__ == '__main__':
     app.run()
+
