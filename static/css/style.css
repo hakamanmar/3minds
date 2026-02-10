@@ -7,30 +7,13 @@
 }
 
 body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Cairo', system-ui, -apple-system, sans-serif;
     background-color: var(--background);
     color: var(--text-main);
     line-height: 1.6;
-    transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-a {
-    text-decoration: none;
-    color: inherit;
-}
-
-button {
-    cursor: pointer;
-    font-family: inherit;
-    border: none;
-    background: none;
 }
 
 /* Layout */
-[dir="rtl"] {
-    text-align: right;
-}
-
 .app-container {
     min-height: 100vh;
     display: flex;
@@ -43,58 +26,30 @@ main {
     max-width: 1200px;
     margin: 0 auto;
     width: 100%;
-    animation: fadeIn 0.5s ease-out;
 }
 
-/* Typography */
-h1,
-h2,
-h3 {
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-main);
+/* Header & Logo */
+.main-header {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    padding: 0.5rem 2rem;
 }
 
-h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
+.logo span {
+    font-family: 'Inter', sans-serif;
+    transition: font-size 0.3s ease;
 }
 
-h2 {
-    font-size: 2rem;
-    margin-bottom: 0.75rem;
-}
-
-h3 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-}
-
-p {
-    margin-bottom: 1rem;
-    color: var(--text-muted);
-}
-
-/* Components */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    transition: all var(--transition-fast);
-}
-
-.btn-primary {
-    background-color: var(--primary);
-    color: white;
-    box-shadow: 0 4px 14px -4px var(--primary);
-}
-
-.btn-primary:hover {
-    background-color: var(--primary-hover);
-    transform: translateY(-1px);
+/* Cards & Grid */
+.grid-auto-fit {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
 }
 
 .card {
@@ -102,244 +57,50 @@ p {
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     border: 1px solid var(--border);
-    transition: all var(--transition-smooth);
+    transition: all 0.3s ease;
 }
 
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.1);
-    border-color: var(--primary);
-}
-
-.glass-panel {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--backdrop-blur));
-    -webkit-backdrop-filter: blur(var(--backdrop-blur));
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
-    border-radius: var(--radius-lg);
-}
-
-/* Header */
-.main-header {
-    height: var(--header-height);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 2rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--backdrop-blur));
-    -webkit-backdrop-filter: blur(var(--backdrop-blur));
-    border-bottom: 1px solid var(--border);
-}
-
-.logo {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-/* Grid for Subjects */
-.grid-auto-fit {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2rem;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
+/* --- Responsive Design (MOBILE FIX) --- */
+@media (max-width: 768px) {
+    main {
+        padding: 1rem;
     }
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--border);
-    border-top: 3px solid var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
+    .main-header {
+        padding: 0.5rem 1rem;
     }
 
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-/* Utilities */
-.text-center {
-    text-align: center;
-}
-
-.mt-4 {
-    margin-top: 1rem;
-}
-
-.mb-4 {
-    margin-bottom: 1rem;
-}
-
-.flex-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.gap-2 {
-    gap: 0.5rem;
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* Form Elements */
-input,
-select,
-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-main);
-    font-size: 1rem;
-    transition: border-color var(--transition-fast);
-}
-
-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
-
-/* Modals */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(4px);
-}
-
-.modal-content {
-    width: 90%;
-    max-width: 500px;
-    padding: 2rem;
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateY(-20px);
-        opacity: 0;
+    /* تخلي اللوجو والاسم يصغرون بالموبايل حتى ما ياخذون مساحة */
+    .logo img {
+        height: 70px !important; /* حجم الشعار بالموبايل */
     }
 
-    to {
-        transform: translateY(0);
-        opacity: 1;
+    .logo span {
+        font-size: 1.5rem !important;
     }
-}
 
-.modal-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-    justify-content: flex-end;
-}
+    /* ترتيب الأزرار بالموبايل */
+    .nav-links {
+        gap: 0.5rem !important;
+    }
 
-/* Toasts */
-#toast-container {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    z-index: 1100;
-}
+    .btn {
+        padding: 0.5rem 1rem !important;
+        font-size: 0.85rem;
+    }
 
-[dir="rtl"] #toast-container {
-    right: auto;
-    left: 2rem;
-}
+    /* العناوين بالموبايل */
+    h1 { font-size: 1.8rem !important; }
+    h2 { font-size: 1.5rem !important; }
 
-.toast {
-    padding: 1rem 1.5rem;
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    color: var(--text-main);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    margin-top: 0.5rem;
-    border-left: 4px solid var(--primary);
-    animation: fadeIn 0.3s ease-out;
-}
+    /* الحاويات الزجاجية */
+    .glass-panel {
+        padding: 1rem !important;
+    }
 
-[dir="rtl"] .toast {
-    border-left: none;
-    border-right: 4px solid var(--primary);
-}
-
-.toast-error {
-    border-color: #ef4444 !important;
-}
-
-/* Admin Controls */
-.admin-bar {
-    background: var(--primary);
-    color: white;
-    padding: 0.5rem 2rem;
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    justify-content: flex-start;
-
-}
-.btn-logout {
-    display: flex !important;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px !important;
-    background: var(--primary) !important;
-    color: white !important;
-    border-radius: 50px !important;
-    text-decoration: none;
-    font-weight: 600;
-}
-.logout-btn-styles {
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 8px 16px !important;
-    background: var(--primary) !important;
-    color: white !important;
-    border-radius: 50px !important;
-    font-weight: 600 !important;
-    white-space: nowrap !important;
-    min-width: fit-content !important;
-}
-
-.logout-btn-styles i {
-    font-size: 1.2rem;
+    /* ترتيب الكارتات بالموبايل */
+    .grid-auto-fit {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
 }
