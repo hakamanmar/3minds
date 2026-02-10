@@ -32,6 +32,27 @@ try:
 except: 
     pass
 
+# Helper for Telegram (مع طباعة الأخطاء)
+def send_telegram(message):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    chat_id = os.environ.get('TELEGRAM_CHANNEL_ID')
+    
+    # Debug Print
+    print(f"DEBUG: Attempting Telegram send to {chat_id}")
+
+    if token and chat_id:
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            payload = {"chat_id": chat_id, "text": message}
+            resp = requests.post(url, json=payload, timeout=10)
+            
+            # Print Response
+            print(f"TELEGRAM RESPONSE: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            print(f"TELEGRAM ERROR: {e}")
+    else:
+        print("TELEGRAM ERROR: Missing token or chat_id")
+
 # Routes
 @app.route('/')
 @app.route('/login')
@@ -119,6 +140,18 @@ def add_lesson():
     c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
               (data['subject_id'], data['title'], data['url'], data['type']))
     conn.commit()
+    
+    # Send Telegram Notification for Lesson
+    try:
+        c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
+        subject_title = c.fetchone()[0] # Get subject name
+        
+        type_str = "فيديو" if data['type'] == 'Video' else "ملف"
+        msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
+        send_telegram(msg)
+    except:
+        pass
+
     c.close()
     conn.close()
     return jsonify({'success': True})
@@ -192,6 +225,11 @@ def handle_announcements():
         data = request.json
         c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
         conn.commit()
+        
+        # Send Telegram for Announcement
+        msg = f"🔔 **تبليغ هام**\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
+        send_telegram(msg)
+        
         c.close()
         conn.close()
         return jsonify({'success': True})
@@ -209,7 +247,6 @@ def handle_announcements():
     c.close()
     conn.close()
     
-    # تحويل التواريخ لنص قبل الإرجاع
     result = []
     for a in anns:
         row = dict(a)
@@ -220,4 +257,3 @@ def handle_announcements():
 
 if __name__ == '__main__':
     app.run()
-
