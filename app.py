@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 from flask import Flask, render_template, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123')
@@ -32,20 +33,16 @@ try:
 except: 
     pass
 
-# Helper for Telegram
 def send_telegram(message):
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     chat_id = os.environ.get('TELEGRAM_CHANNEL_ID')
-    
     if token and chat_id:
         try:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
-            payload = {"chat_id": chat_id, "text": message}
-            requests.post(url, json=payload, timeout=5)
+            requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
         except:
             pass
 
-# Routes
 @app.route('/')
 @app.route('/login')
 @app.route('/admin')
@@ -73,13 +70,11 @@ def handle_subjects():
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     if request.method == 'POST':
         data = request.json
-        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)',
-                  (data['title'], data['description'], data['code'], data['color']))
+        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)', (data['title'], data['description'], data['code'], data['color']))
         conn.commit()
         c.close()
         conn.close()
         return jsonify({'success': True})
-    
     c.execute('SELECT * FROM subjects')
     subs = c.fetchall()
     c.close()
@@ -90,7 +85,6 @@ def handle_subjects():
 def handle_subject(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    
     if request.method == 'DELETE':
         c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
         c.execute('DELETE FROM subjects WHERE id = %s', (id,))
@@ -98,16 +92,13 @@ def handle_subject(id):
         c.close()
         conn.close()
         return jsonify({'success': True})
-
     if request.method == 'PUT':
         data = request.json
-        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s',
-                  (data['title'], data['code'], data['description'], data['color'], id))
+        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', (data['title'], data['code'], data['description'], data['color'], id))
         conn.commit()
         c.close()
         conn.close()
         return jsonify({'success': True})
-    
     c.execute('SELECT * FROM subjects WHERE id = %s', (id,))
     subject = c.fetchone()
     c.close()
@@ -129,21 +120,16 @@ def add_lesson():
     data = request.json
     conn = get_db()
     c = conn.cursor()
-    c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
-              (data['subject_id'], data['title'], data['url'], data['type']))
+    c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)', (data['subject_id'], data['title'], data['url'], data['type']))
     conn.commit()
-    
-    # Send Telegram Notification for Lesson
     try:
         c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
         subject_title = c.fetchone()[0]
-        
         type_str = "فيديو" if data['type'] == 'Video' else "ملف"
-        msg = f"📢 المحاضرة ({type_str}) نزلت!\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن على المنصة 👇\nhttps://3minds-academic.vercel.app"
+        msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
         send_telegram(msg)
     except:
         pass
-
     c.close()
     conn.close()
     return jsonify({'success': True})
@@ -174,8 +160,7 @@ def add_student():
     conn = get_db()
     c = conn.cursor()
     try:
-        c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)',
-                  (data['email'], generate_password_hash(data['password']), 'student'))
+        c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)', (data['email'], generate_password_hash(data['password']), 'student'))
         conn.commit()
         return jsonify({'success': True})
     except:
@@ -200,32 +185,25 @@ def change_password():
     data = request.json
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE users SET password = %s WHERE id = %s', 
-              (generate_password_hash(data['password']), data['user_id']))
+    c.execute('UPDATE users SET password = %s WHERE id = %s', (generate_password_hash(data['password']), data['user_id']))
     conn.commit()
     c.close()
     conn.close()
     return jsonify({'success': True})
 
-# Announcements API
 @app.route('/api/announcements', methods=['GET', 'POST', 'DELETE', 'PUT'])
 def handle_announcements():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    
     if request.method == 'POST':
         data = request.json
         c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
         conn.commit()
-        
-        # Send Telegram for Announcement
-        msg = f"🔔 تبليغ هام من الإدارة\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
+        msg = f"🔔 **تبليغ هام**\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
         send_telegram(msg)
-        
         c.close()
         conn.close()
         return jsonify({'success': True})
-
     if request.method == 'PUT':
         data = request.json
         id = request.args.get('id')
@@ -234,7 +212,6 @@ def handle_announcements():
         c.close()
         conn.close()
         return jsonify({'success': True})
-        
     if request.method == 'DELETE':
         id = request.args.get('id')
         c.execute('DELETE FROM announcements WHERE id = %s', (id,))
@@ -242,19 +219,13 @@ def handle_announcements():
         c.close()
         conn.close()
         return jsonify({'success': True})
-
-    c.execute('SELECT * FROM announcements ORDER BY created_at DESC')
+    
+    # Fetch with formatted date
+    c.execute("SELECT id, content, to_char(created_at, 'DD-MM-YYYY  HH12:MI AM') as created_at FROM announcements ORDER BY id DESC")
     anns = c.fetchall()
     c.close()
     conn.close()
-    
-    result = []
-    for a in anns:
-        row = dict(a)
-        row['created_at'] = str(row['created_at'])
-        result.append(row)
-        
-    return jsonify(result)
+    return jsonify([dict(a) for a in anns])
 
 if __name__ == '__main__':
     app.run()
