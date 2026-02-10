@@ -84,6 +84,22 @@ export const api = {
             method: 'POST',
             body: JSON.stringify({ email, password })
         });
+    },
+
+    // Announcements
+    async getAnnouncements() {
+        return this._fetch(`${API_BASE}/announcements`);
+    },
+    async addAnnouncement(content) {
+        return this._fetch(`${API_BASE}/announcements`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+    },
+    async deleteAnnouncement(id) {
+        return this._fetch(`${API_BASE}/announcements?id=${id}`, {
+            method: 'DELETE'
+        });
     }
 };
 
