@@ -3,8 +3,10 @@ import { i18n } from '../i18n.js';
 
 const HomePage = async () => {
     let subjects = [];
+    let announcements = [];
     try {
         subjects = await api.getSubjects();
+        announcements = await api.getAnnouncements();
     } catch (e) {
         console.error(e);
         return `<div class="card" style="padding: 2rem; text-align: center;">
@@ -13,7 +15,24 @@ const HomePage = async () => {
         </div>`;
     }
 
-    if (subjects.length === 0) {
+    const announcementsSection = announcements.length > 0 ? `
+        <div class="card mb-4" style="border-right: 4px solid var(--primary); background-color: rgba(79, 70, 229, 0.05);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--primary);">
+                <i class="ph ph-megaphone" style="font-size: 1.5rem;"></i>
+                <h3 style="margin: 0; font-size: 1.2rem;">لوحة التبليغات</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                ${announcements.map(a => `
+                    <div style="padding: 0.5rem; border-bottom: 1px dashed var(--border);">
+                        <p style="margin: 0; font-size: 1rem; color: var(--text-main); line-height: 1.6;">${a.content}</p>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">${a.created_at.split(' ')[0]}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+
+    if (subjects.length === 0 && announcements.length === 0) {
         return `
             <div class="text-center" style="padding: 4rem 2rem;">
                 <i class="ph ph-books" style="font-size: 5rem; color: var(--text-muted); display: block; margin-bottom: 1rem;"></i>
@@ -24,6 +43,8 @@ const HomePage = async () => {
     }
 
     return `
+        ${announcementsSection}
+
         <div class="header-section mb-4">
             <h1>${i18n.t('subjects')}</h1>
             <p>اختر المادة لعرض المحاضرات والملفات</p>
