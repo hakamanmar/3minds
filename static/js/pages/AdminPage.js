@@ -20,7 +20,7 @@ const AdminPage = async () => {
 
     // دوال الحذف والتعديل
     window.deleteAnnouncement = async (id) => {
-        if (confirm('هل أنت متأكد من حذف هذا التبليغ؟')) {
+        if (confirm('هل تريد حذف هذا التبليغ؟')) {
             await api.deleteAnnouncement(id);
             location.reload(); 
         }
@@ -55,9 +55,11 @@ const AdminPage = async () => {
             <div class="card" style="grid-column: span 2;">
                 <div class="flex-between mb-4">
                     <h3>📢 التبليغات والإعلانات</h3>
-                    <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
-                        <span>➕ تبليغ جديد</span>
-                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
+                            <span>➕ تبليغ جديد</span>
+                        </button>
+                    </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.8rem;">
                     ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
@@ -72,13 +74,13 @@ const AdminPage = async () => {
                             <!-- أزرار الحذف والتعديل (واضحة جداً) -->
                             <div style="display: flex; gap: 10px; margin-right: 15px;">
                                 <button type="button" 
-                                        onmousedown="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" 
+                                        onclick="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" 
                                         style="background: #e0e7ff; border: 1px solid #6366f1; border-radius: 5px; cursor: pointer; color: #4338ca; padding: 5px 10px; font-size: 1rem;" 
                                         title="تعديل">
                                     ✏️ تعديل
                                 </button>
                                 <button type="button" 
-                                        onmousedown="window.deleteAnnouncement('${a.id}')" 
+                                        onclick="window.deleteAnnouncement('${a.id}')" 
                                         style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 5px; cursor: pointer; color: #b91c1c; padding: 5px 10px; font-size: 1rem;" 
                                         title="حذف">
                                     🗑️ حذف
@@ -86,6 +88,22 @@ const AdminPage = async () => {
                             </div>
                         </div>
                     `).join('')}
+                    
+                    <!-- زر الطوارئ الأحمر (يمسح كل التبليغات بضغطة وحدة) -->
+                     ${announcements.length > 0 ? `
+                        <div style="margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
+                             <button onclick="
+                                if(confirm('تحذير: هل تريد مسح جميع التبليغات؟')) {
+                                    fetch('/api/announcements').then(r=>r.json()).then(data => {
+                                        data.forEach(ann => fetch('/api/announcements?id=' + ann.id, {method:'DELETE'}));
+                                        setTimeout(() => location.reload(), 1000);
+                                    });
+                                }
+                            " class="btn" style="background: #ef4444; color: white; border: none; padding: 0.8rem 2rem; font-size: 1rem; border-radius: 8px;">
+                                🧨 ⚠️ حذف جميع التبليغات (طوارئ)
+                            </button>
+                        </div>
+                     ` : ''}
                 </div>
             </div>
 
