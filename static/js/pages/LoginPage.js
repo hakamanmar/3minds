@@ -1,3 +1,4 @@
+/* LoginPage.js - Updated Branding */
 import { api, auth } from '../api.js';
 import { i18n } from '../i18n.js';
 import { UI } from '../ui.js';
@@ -7,7 +8,7 @@ const LoginPage = async () => {
         <div style="display: flex; justify-content: center; align-items: center; height: 80vh;">
             <div class="glass-panel" style="padding: 3rem; width: 100%; max-width: 400px;">
                 <h1 class="text-center">${i18n.t('login')}</h1>
-                <p class="text-center mb-4">Welcome back to AcademicHub</p>
+                <p class="text-center mb-4" style="color: var(--primary); font-weight: 600;">Welcome back to 3Minds</p>
                 
                 <form id="login-form">
                     <div class="mb-4">
@@ -20,7 +21,7 @@ const LoginPage = async () => {
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">${i18n.t('login')}</button>
                     
-                                      <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
+                    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
                         <p>Developed by:</p>
                         <p style="color: var(--primary);">alhakam anmar & mena sabri & danya majed</p>
                     </div>
@@ -44,7 +45,7 @@ LoginPage.init = () => {
                 if (res.must_reset) {
                     window.router.navigate('/change-password');
                 } else {
-                    window.router.navigate('/');
+                    window.location.reload(); // Reload to refresh navbar
                 }
             } else {
                 UI.toast(res.message || i18n.t('error'), 'error');
@@ -60,4 +61,3 @@ LoginPage.init = () => {
 };
 
 export default LoginPage;
-
