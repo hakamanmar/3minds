@@ -1,3 +1,4 @@
+/* main.js - Fixed Logo Issue */
 import { auth } from './api.js';
 import { i18n } from './i18n.js';
 import HomePage from './pages/HomePage.js';
@@ -74,7 +75,8 @@ class Router {
             </button>
         `;
 
-        document.querySelector('.logo').innerHTML = `<i class="ph ph-graduation-cap"></i> ${i18n.t('logo')}`;
+        // IMPORTANT: Removed the line that was overwriting the logo
+        // The logo is now static in index.html and handled by ui.js
 
         if (user) {
             this.navContainer.innerHTML = `
