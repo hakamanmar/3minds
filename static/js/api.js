@@ -96,6 +96,12 @@ export const api = {
             body: JSON.stringify({ content })
         });
     },
+    async updateAnnouncement(id, content) {
+        return this._fetch(`${API_BASE}/announcements?id=${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ content })
+        });
+    },
     async deleteAnnouncement(id) {
         return this._fetch(`${API_BASE}/announcements?id=${id}`, {
             method: 'DELETE'
