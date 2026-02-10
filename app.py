@@ -70,7 +70,7 @@ def handle_subjects():
     conn.close()
     return jsonify([dict(s) for s in subs])
 
-@app.route('/api/subjects/<int:id>', methods=['GET', 'DELETE'])
+@app.route('/api/subjects/<int:id>', methods=['GET', 'DELETE', 'PUT'])
 def handle_subject(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -78,6 +78,15 @@ def handle_subject(id):
     if request.method == 'DELETE':
         c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
         c.execute('DELETE FROM subjects WHERE id = %s', (id,))
+        conn.commit()
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+
+    if request.method == 'PUT':
+        data = request.json
+        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s',
+                  (data['title'], data['code'], data['description'], data['color'], id))
         conn.commit()
         c.close()
         conn.close()
