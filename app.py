@@ -9,6 +9,7 @@ from datetime import datetime
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123')
 
+# Database Helpers
 def get_db():
     return psycopg2.connect(os.environ.get('POSTGRES_URL'))
 
@@ -20,6 +21,7 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS lessons (id SERIAL PRIMARY KEY, subject_id INTEGER, title TEXT, url TEXT, type TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS announcements (id SERIAL PRIMARY KEY, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     
+    # Create Admin User if not exists
     c.execute('SELECT count(*) FROM users WHERE email=%s', ('admin@3minds.edu',))
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)', 
@@ -28,11 +30,10 @@ def init_db():
     c.close()
     conn.close()
 
-try: 
-    init_db()
-except: 
-    pass
+try: init_db()
+except: pass
 
+# Telegram Service
 def send_telegram(message):
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     chat_id = os.environ.get('TELEGRAM_CHANNEL_ID')
@@ -40,9 +41,9 @@ def send_telegram(message):
         try:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
             requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
-        except:
-            pass
+        except: pass
 
+# Routes
 @app.route('/')
 @app.route('/login')
 @app.route('/admin')
@@ -60,9 +61,12 @@ def login():
     user = c.fetchone()
     c.close()
     conn.close()
+    
     if user and check_password_hash(user['password'], data.get('password')):
+        # Device Check Logic
+        # (Simplified for now - user stays logged on browser)
         return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
-    return jsonify({'success': False}), 401
+    return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
 @app.route('/api/subjects', methods=['GET', 'POST'])
 def handle_subjects():
@@ -72,10 +76,9 @@ def handle_subjects():
         data = request.json
         c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)', (data['title'], data['description'], data['code'], data['color']))
         conn.commit()
-        c.close()
-        conn.close()
         return jsonify({'success': True})
-    c.execute('SELECT * FROM subjects')
+    
+    c.execute('SELECT * FROM subjects ORDER BY id ASC')
     subs = c.fetchall()
     c.close()
     conn.close()
@@ -85,6 +88,7 @@ def handle_subjects():
 def handle_subject(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
     if request.method == 'DELETE':
         c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
         c.execute('DELETE FROM subjects WHERE id = %s', (id,))
@@ -92,13 +96,16 @@ def handle_subject(id):
         c.close()
         conn.close()
         return jsonify({'success': True})
+        
     if request.method == 'PUT':
         data = request.json
-        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', (data['title'], data['code'], data['description'], data['color'], id))
+        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', 
+                 (data['title'], data['code'], data['description'], data['color'], id))
         conn.commit()
         c.close()
         conn.close()
         return jsonify({'success': True})
+        
     c.execute('SELECT * FROM subjects WHERE id = %s', (id,))
     subject = c.fetchone()
     c.close()
@@ -109,7 +116,7 @@ def handle_subject(id):
 def get_lessons(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    c.execute('SELECT * FROM lessons WHERE subject_id = %s', (id,))
+    c.execute('SELECT * FROM lessons WHERE subject_id = %s ORDER BY id ASC', (id,))
     lessons = c.fetchall()
     c.close()
     conn.close()
@@ -122,14 +129,16 @@ def add_lesson():
     c = conn.cursor()
     c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)', (data['subject_id'], data['title'], data['url'], data['type']))
     conn.commit()
+    
+    # Telegram Notification for Lesson
     try:
         c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
         subject_title = c.fetchone()[0]
         type_str = "فيديو" if data['type'] == 'Video' else "ملف"
         msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
         send_telegram(msg)
-    except:
-        pass
+    except: pass
+    
     c.close()
     conn.close()
     return jsonify({'success': True})
@@ -144,11 +153,20 @@ def delete_lesson(id):
     conn.close()
     return jsonify({'success': True})
 
-@app.route('/api/users', methods=['GET'])
-def get_users():
+@app.route('/api/users', methods=['GET', 'DELETE'])
+def handle_users():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    c.execute('SELECT id, email, role, device_id FROM users')
+    
+    if request.method == 'DELETE':
+        user_id = request.args.get('id')
+        c.execute('DELETE FROM users WHERE id = %s AND role != \'admin\'', (user_id,))
+        conn.commit()
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+        
+    c.execute('SELECT id, email, role, device_id FROM users ORDER BY id ASC')
     users = c.fetchall()
     c.close()
     conn.close()
@@ -164,7 +182,7 @@ def add_student():
         conn.commit()
         return jsonify({'success': True})
     except:
-        return jsonify({'success': False, 'error': 'Exists'})
+        return jsonify({'success': False, 'error': 'User already exists'})
     finally:
         c.close()
         conn.close()
@@ -195,6 +213,7 @@ def change_password():
 def handle_announcements():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
     if request.method == 'POST':
         data = request.json
         c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
@@ -204,6 +223,7 @@ def handle_announcements():
         c.close()
         conn.close()
         return jsonify({'success': True})
+        
     if request.method == 'PUT':
         data = request.json
         id = request.args.get('id')
@@ -212,6 +232,7 @@ def handle_announcements():
         c.close()
         conn.close()
         return jsonify({'success': True})
+        
     if request.method == 'DELETE':
         id = request.args.get('id')
         c.execute('DELETE FROM announcements WHERE id = %s', (id,))
@@ -220,7 +241,6 @@ def handle_announcements():
         conn.close()
         return jsonify({'success': True})
     
-    # Fetch with formatted date
     c.execute("SELECT id, content, to_char(created_at, 'DD-MM-YYYY  HH12:MI AM') as created_at FROM announcements ORDER BY id DESC")
     anns = c.fetchall()
     c.close()
