@@ -1,58 +1,80 @@
+import { auth } from './api.js';
 import { i18n } from './i18n.js';
 
 export const UI = {
-    modal(title, content, onConfirm, confirmText = i18n.t('save')) {
-        const modalId = 'dynamic-modal';
-        let modal = document.getElementById(modalId);
-        if (modal) modal.remove();
-
-        modal = document.createElement('div');
-        modal.id = modalId;
-        modal.className = 'modal-overlay';
-        modal.dir = i18n.t('dir');
-        modal.innerHTML = `
-            <div class="modal-content glass-panel">
-                <h3>${title}</h3>
-                <div class="modal-body">${content}</div>
-                <div class="modal-actions">
-                    <button class="btn btn-primary" id="modal-confirm">${confirmText}</button>
-                    <button class="btn" id="modal-cancel">${i18n.t('cancel')}</button>
+    renderNavbar(user) {
+        return `
+            <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 0;">
+                <div class="logo" onclick="window.router.navigate('/')" style="cursor: pointer; display: flex; align-items: center;">
+                    <!-- استخدام الصورة اللي رفعتها -->
+                    <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 60px; object-fit: contain;">
+                </div>
+                
+                <div class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
+                    ${user ? `
+                        <span style="font-size: 0.9rem; color: var(--text-muted); display: none;">${user.email}</span>
+                        ${user.role === 'admin' ? 
+                            `<button class="btn" onclick="window.router.navigate('/admin')" style="background: var(--bg-card); border: 1px solid var(--border);">${i18n.t('admin_panel')}</button>` : ''
+                        }
+                        <button class="btn btn-primary" onclick="window.auth.logout()">${i18n.t('logout')}</button>
+                    ` : ''}
+                    <button class="btn btn-ghost" onclick="window.toggleLang()" style="font-family: inherit;">
+                        ${localStorage.getItem('lang') === 'en' ? 'عربي' : 'English'}
+                    </button>
                 </div>
             </div>
         `;
-
-        document.body.appendChild(modal);
-
-        return new Promise((resolve) => {
-            document.getElementById('modal-cancel').onclick = () => {
-                modal.remove();
-                resolve(null);
-            };
-            document.getElementById('modal-confirm').onclick = async () => {
-                const inputs = modal.querySelectorAll('input, select, textarea');
-                const data = {};
-                inputs.forEach(i => data[i.name] = i.type === 'file' ? i.files[0] : i.value);
-
-                if (onConfirm) {
-                    const success = await onConfirm(data);
-                    if (success) {
-                        modal.remove();
-                        resolve(data);
-                    }
-                } else {
-                    modal.remove();
-                    resolve(data);
-                }
-            };
-        });
     },
 
+    modal(title, content, onConfirm) {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>${title}</h3>
+                        <button class="close-modal"><i class="ph ph-x"></i></button>
+                    </div>
+                    <div class="modal-body">${content}</div>
+                    <div class="modal-footer">
+                        <button class="btn close-modal-btn">${i18n.t('cancel')}</button>
+                        <button class="btn btn-primary confirm-modal-btn">${i18n.t('save')}</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const close = () => { modal.remove(); resolve(null); };
+            modal.querySelector('.close-modal').onclick = close;
+            modal.querySelector('.close-modal-btn').onclick = close;
+
+            const confirmBtn = modal.querySelector('.confirm-modal-btn');
+            if (confirmBtn) {
+                confirmBtn.onclick = async () => {
+                    const originalText = confirmBtn.innerText;
+                    confirmBtn.innerText = '...';
+                    confirmBtn.disabled = true;
+                    const result = await onConfirm();
+                    if (result) { modal.remove(); resolve(result); } 
+                    else { confirmBtn.innerText = originalText; confirmBtn.disabled = false; }
+                };
+            }
+        });
+    },
+    
     toast(message, type = 'success') {
-        const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
+        toast.style.cssText = `
+            position: fixed; bottom: 20px; right: 20px; 
+            padding: 1rem 1.5rem; background: ${type==='error'?'#ef4444':'#10b981'}; 
+            color: white; border-radius: 8px; z-index: 9999; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-weight: 500;
+            animation: slideIn 0.3s ease-out forwards;
+        `;
         toast.innerText = message;
-        container.appendChild(toast);
+        document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
     }
 };
