@@ -32,26 +32,18 @@ try:
 except: 
     pass
 
-# Helper for Telegram (مع طباعة الأخطاء)
+# Helper for Telegram
 def send_telegram(message):
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     chat_id = os.environ.get('TELEGRAM_CHANNEL_ID')
     
-    # Debug Print
-    print(f"DEBUG: Attempting Telegram send to {chat_id}")
-
     if token and chat_id:
         try:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
             payload = {"chat_id": chat_id, "text": message}
-            resp = requests.post(url, json=payload, timeout=10)
-            
-            # Print Response
-            print(f"TELEGRAM RESPONSE: {resp.status_code} - {resp.text}")
-        except Exception as e:
-            print(f"TELEGRAM ERROR: {e}")
-    else:
-        print("TELEGRAM ERROR: Missing token or chat_id")
+            requests.post(url, json=payload, timeout=5)
+        except:
+            pass
 
 # Routes
 @app.route('/')
@@ -144,10 +136,10 @@ def add_lesson():
     # Send Telegram Notification for Lesson
     try:
         c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
-        subject_title = c.fetchone()[0] # Get subject name
+        subject_title = c.fetchone()[0]
         
         type_str = "فيديو" if data['type'] == 'Video' else "ملف"
-        msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
+        msg = f"📢 المحاضرة ({type_str}) نزلت!\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن على المنصة 👇\nhttps://3minds-academic.vercel.app"
         send_telegram(msg)
     except:
         pass
@@ -216,7 +208,7 @@ def change_password():
     return jsonify({'success': True})
 
 # Announcements API
-@app.route('/api/announcements', methods=['GET', 'POST', 'DELETE'])
+@app.route('/api/announcements', methods=['GET', 'POST', 'DELETE', 'PUT'])
 def handle_announcements():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -227,9 +219,18 @@ def handle_announcements():
         conn.commit()
         
         # Send Telegram for Announcement
-        msg = f"🔔 **تبليغ هام**\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
+        msg = f"🔔 تبليغ هام من الإدارة\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
         send_telegram(msg)
         
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+
+    if request.method == 'PUT':
+        data = request.json
+        id = request.args.get('id')
+        c.execute('UPDATE announcements SET content = %s WHERE id = %s', (data['content'], id))
+        conn.commit()
         c.close()
         conn.close()
         return jsonify({'success': True})
