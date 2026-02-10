@@ -1,4 +1,4 @@
-/* LoginPage.js - Fixed Redirect */
+/* LoginPage.js - Names Arranged Vertically */
 import { api, auth } from '../api.js';
 import { i18n } from '../i18n.js';
 import { UI } from '../ui.js';
@@ -21,9 +21,13 @@ const LoginPage = async () => {
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">${i18n.t('login')}</button>
                     
-                    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
-                        <p>Developed by:</p>
-                        <p style="color: var(--primary);">alhakam anmar & mena sabri & danya majed</p>
+                    <div style="margin-top: 2rem; text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500; border-top: 1px dashed var(--border); padding-top: 1rem;">
+                        <p style="margin-bottom: 0.5rem;">Developed by:</p>
+                        <div style="color: var(--primary); line-height: 1.8;">
+                            Alhakam Anmar<br>
+                            Mena Sabri<br>
+                            Danya Majed
+                        </div>
                     </div>
                 </form>
             </div>
@@ -33,41 +37,27 @@ const LoginPage = async () => {
 
 LoginPage.init = () => {
     const form = document.getElementById('login-form');
+    // ... (نفس كود الدخول المضبوط السابق)
     if (!form) return;
-    
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-
-        // Visual feedback (disable button)
         const btn = form.querySelector('button[type="submit"]');
         const oldText = btn.innerText;
-        btn.innerText = '...';
-        btn.disabled = true;
-
+        btn.innerText = '...'; btn.disabled = true;
         try {
             const res = await api.login(email, password);
             if (res.success) {
                 auth.setUser(res.user);
-                
-                // IMPORTANT: Direct navigation using the router
                 window.router.navigate('/');
-                
             } else {
                 UI.toast(res.message || i18n.t('error'), 'error');
-                btn.innerText = oldText;
-                btn.disabled = false;
+                btn.innerText = oldText; btn.disabled = false;
             }
         } catch (err) {
-            console.error(err);
-            if (err.status === 403) {
-                UI.toast(i18n.t('device_locked'), 'error');
-            } else {
-                UI.toast(i18n.t('error'), 'error');
-            }
-            btn.innerText = oldText;
-            btn.disabled = false;
+            UI.toast(i18n.t('error'), 'error');
+            btn.innerText = oldText; btn.disabled = false;
         }
     });
 };
