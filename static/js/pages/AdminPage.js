@@ -47,10 +47,15 @@ const AdminPage = async () => {
                     ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
                     ${announcements.map(a => `
                         <div style="padding: 0.8rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: center;">
-                            <p style="margin: 0; width: 85%;">${a.content}</p>
-                            <button class="btn delete-ann-btn" data-id="${a.id}" style="color: #ef4444; border: none;">
-                                <i class="ph ph-trash"></i>
-                            </button>
+                            <p style="margin: 0; width: 80%;">${a.content}</p>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn edit-ann-btn" data-id="${a.id}" data-content="${a.content}" style="color: var(--primary); border: none;">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn delete-ann-btn" data-id="${a.id}" style="color: #ef4444; border: none;">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -145,6 +150,23 @@ AdminPage.init = () => {
         if (data) window.router.resolve();
     };
 
+    // Edit Announcement
+    document.querySelectorAll('.edit-ann-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const { id, content } = btn.dataset;
+            const html = `<textarea id="edit-ann-content" style="height: 100px;">${content}</textarea>`;
+            
+            const data = await UI.modal('تعديل التبليغ', html, async () => {
+                const newText = document.getElementById('edit-ann-content').value;
+                if (!newText) return false;
+                await api.updateAnnouncement(id, newText);
+                UI.toast('تم التعديل');
+                return true;
+            });
+            if (data) window.router.resolve();
+        };
+    });
+
     // Delete Announcement
     document.querySelectorAll('.delete-ann-btn').forEach(btn => {
         btn.onclick = async () => {
@@ -193,7 +215,6 @@ AdminPage.init = () => {
         };
     });
 
-    // Rest of the handlers (Add Lesson, Add Student, etc... same as before)
     document.querySelectorAll('.add-lesson-btn').forEach(btn => {
         btn.onclick = async () => {
             const subjectId = btn.dataset.id;
