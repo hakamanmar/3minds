@@ -16,6 +16,7 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, role TEXT, device_id TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS subjects (id SERIAL PRIMARY KEY, title TEXT, description TEXT, code TEXT, color TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS lessons (id SERIAL PRIMARY KEY, subject_id INTEGER, title TEXT, url TEXT, type TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS announcements (id SERIAL PRIMARY KEY, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     
     c.execute('SELECT count(*) FROM users WHERE email=%s', ('admin@3minds.edu',))
     if c.fetchone()[0] == 0:
@@ -30,6 +31,7 @@ try:
 except: 
     pass
 
+# Routes
 @app.route('/')
 @app.route('/login')
 @app.route('/admin')
@@ -178,6 +180,42 @@ def change_password():
     c.close()
     conn.close()
     return jsonify({'success': True})
+
+# Announcements API
+@app.route('/api/announcements', methods=['GET', 'POST', 'DELETE'])
+def handle_announcements():
+    conn = get_db()
+    c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
+    if request.method == 'POST':
+        data = request.json
+        c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
+        conn.commit()
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+        
+    if request.method == 'DELETE':
+        id = request.args.get('id')
+        c.execute('DELETE FROM announcements WHERE id = %s', (id,))
+        conn.commit()
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+
+    c.execute('SELECT * FROM announcements ORDER BY created_at DESC')
+    anns = c.fetchall()
+    c.close()
+    conn.close()
+    
+    # تحويل التواريخ لنص قبل الإرجاع
+    result = []
+    for a in anns:
+        row = dict(a)
+        row['created_at'] = str(row['created_at'])
+        result.append(row)
+        
+    return jsonify(result)
 
 if __name__ == '__main__':
     app.run()
