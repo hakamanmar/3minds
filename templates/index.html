@@ -20,14 +20,12 @@
     <div id="app" class="app-container">
         <!-- Header -->
         <header class="main-header">
-            <!-- اللوجو والاسم -->
-            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
-                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 65px; object-fit: contain;"> <!-- تكبير اللوجو -->
-                <span style="font-weight: 800; font-size: 1.6rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span> <!-- الاسم -->
+            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 15px; text-decoration: none; color: inherit;">
+                <!-- كبرت الارتفاع الى 80px -->
+                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 80px; object-fit: contain;"> 
+                <span style="font-weight: 800; font-size: 1.8rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
             </a>
-            <nav id="nav-menu">
-                <!-- Injected via JS based on Auth -->
-            </nav>
+            <nav id="nav-menu"></nav>
         </header>
 
         <main id="main-content">
@@ -39,7 +37,6 @@
         <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;"></div>
     </div>
 
-    <!-- Main Script -->
     <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
