@@ -18,11 +18,11 @@ const AdminPage = async () => {
         </div>`;
     }
 
-    // هذه الدوال لازم تكون معرّفة "عالمياً" حتى تشتغل بضمان
+    // دوال الحذف والتعديل
     window.deleteAnnouncement = async (id) => {
         if (confirm('هل أنت متأكد من حذف هذا التبليغ؟')) {
             await api.deleteAnnouncement(id);
-            location.reload(); // تحديث الصفحة للتأكيد
+            location.reload(); 
         }
     };
 
@@ -45,44 +45,43 @@ const AdminPage = async () => {
                 <p>System Architecture & Cybersecurity Controls</p>
             </div>
             <button class="btn" onclick="window.router.navigate('/')" style="display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);">
-                <i class="ph ph-house"></i>
-                <span>الصفحة الرئيسية</span>
+                <span>🏠 الصفحة الرئيسية</span>
             </button>
         </div>
 
         <div class="grid-auto-fit" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
             
-            <!-- Announcements Management -->
+            <!-- قسم التبليغات -->
             <div class="card" style="grid-column: span 2;">
                 <div class="flex-between mb-4">
                     <h3>📢 التبليغات والإعلانات</h3>
                     <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
-                        <i class="ph ph-plus"></i>
-                        <span>تبليغ جديد</span>
+                        <span>➕ تبليغ جديد</span>
                     </button>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.8rem;">
                     ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
                     ${announcements.map(a => `
-                        <div style="padding: 1rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="padding: 1rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: center;">
                             <div style="flex: 1;">
-                                <p style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-main); font-weight: 500;">${a.content}</p>
-                                <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
-                                    <i class="ph ph-clock"></i> ${a.created_at || 'Now'}
+                                <p style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-main); font-weight: 500;">${a.content}</p>
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">
+                                    🕒 ${a.created_at || 'الآن'}
                                 </span>
                             </div>
-                            <div style="display: flex; gap: 1rem; align-items: center;">
+                            <!-- أزرار الحذف والتعديل (واضحة جداً) -->
+                            <div style="display: flex; gap: 10px; margin-right: 15px;">
                                 <button type="button" 
                                         onmousedown="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" 
-                                        style="background: none; border: none; cursor: pointer; color: var(--primary); font-size: 1.4rem;" 
+                                        style="background: #e0e7ff; border: 1px solid #6366f1; border-radius: 5px; cursor: pointer; color: #4338ca; padding: 5px 10px; font-size: 1rem;" 
                                         title="تعديل">
-                                    <i class="ph ph-pencil-simple"></i>
+                                    ✏️ تعديل
                                 </button>
                                 <button type="button" 
                                         onmousedown="window.deleteAnnouncement('${a.id}')" 
-                                        style="background: none; border: none; cursor: pointer; color: #ef4444; font-size: 1.4rem;" 
+                                        style="background: #fee2e2; border: 1px solid #ef4444; border-radius: 5px; cursor: pointer; color: #b91c1c; padding: 5px 10px; font-size: 1rem;" 
                                         title="حذف">
-                                    <i class="ph ph-trash"></i>
+                                    🗑️ حذف
                                 </button>
                             </div>
                         </div>
@@ -90,30 +89,27 @@ const AdminPage = async () => {
                 </div>
             </div>
 
-            <!-- Subject Management -->
+            <!-- بقية الأقسام (المواد) -->
             <div class="card">
                 <div class="flex-between mb-4">
                     <h3>${i18n.t('subjects')}</h3>
-                    <button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
-                        <i class="ph ph-plus"></i> <span>إضافة مادة</span>
+                    <button id="add-subject-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                        <span>➕ إضافة مادة</span>
                     </button>
                 </div>
-                <!-- ... Subjects List ... -->
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${subjects.map(s => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
                             <div class="flex-between">
                                 <strong>${s.title} (${s.code})</strong>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn edit-subject-btn" data-id="${s.id}" data-title="${s.title}" data-code="${s.code}" data-desc="${s.description||''}" data-color="${s.color||'#4f46e5'}" style="color: var(--primary); border: 1px solid var(--border);">
-                                        <i class="ph ph-pencil-simple"></i>
-                                    </button>
-                                    <button class="btn delete-subject-btn" data-id="${s.id}" style="color: #ef4444; border: 1px solid #ef4444;"><i class="ph ph-trash"></i></button>
+                                <div>
+                                    <button class="btn edit-subject-btn" data-id="${s.id}" data-title="${s.title}" data-code="${s.code}" data-desc="${s.description||''}" data-color="${s.color||'#4f46e5'}" style="margin-left:5px;">✏️</button>
+                                    <button class="btn delete-subject-btn" data-id="${s.id}" style="color: #ef4444;">🗑️</button>
                                 </div>
                             </div>
                             <div style="margin-top: 1rem;">
-                                <button class="btn add-lesson-btn" data-id="${s.id}" style="color:var(--primary); font-size: 0.9rem; display: flex; align-items: center; gap: 4px; border: 1px dashed var(--primary); width: 100%; justify-content: center;">
-                                    <i class="ph ph-plus"></i> أضف درس أو ملف
+                                <button class="btn add-lesson-btn" data-id="${s.id}" style="width: 100%; border: 1px dashed var(--primary); text-align: center;">
+                                    ➕ أضف درس
                                 </button>
                             </div>
                         </div>
@@ -121,15 +117,14 @@ const AdminPage = async () => {
                 </div>
             </div>
 
-            <!-- Student Management -->
+            <!-- الطلاب -->
             <div class="card">
                 <div class="flex-between mb-4">
                     <h3>${i18n.t('manage_students')}</h3>
-                    <button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
-                        <i class="ph ph-user-plus"></i> <span>إضافة طالب</span>
+                    <button id="add-student-btn" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                        <span>➕ إضافة طالب</span>
                     </button>
                 </div>
-                <!-- ... users list ... -->
                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${users.filter(u => u.role === 'student').map(u => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm);">
@@ -137,9 +132,8 @@ const AdminPage = async () => {
                                 <strong>${u.email}</strong>
                                 <span class="badge" style="background: ${u.device_id ? '#10b981' : '#f59e0b'}; color: white;">${u.device_id ? 'Linked' : 'Pending'}</span>
                             </div>
-                            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                                <button class="btn reset-device-btn" data-id="${u.id}" style="font-size: 0.8rem; border: 1px solid var(--border);">${i18n.t('reset_device')}</button>
-                                <button class="btn force-reset-pw" data-id="${u.id}" style="font-size: 0.8rem; border: 1px solid var(--border);">${i18n.t('force_reset')}</button>
+                            <div style="margin-top: 1rem;">
+                                <button class="btn reset-device-btn" data-id="${u.id}" style="border: 1px solid var(--border);">🔄 Reset Device</button>
                             </div>
                         </div>
                     `).join('')}
@@ -216,7 +210,6 @@ AdminPage.init = () => {
         };
     }
     
-    // Lesson & Student Logic (Existing code remains same)
     document.querySelectorAll('.add-lesson-btn').forEach(btn => {
         btn.onclick = async () => {
             const subjectId = btn.dataset.id;
@@ -250,18 +243,6 @@ AdminPage.init = () => {
 
     document.querySelectorAll('.reset-device-btn').forEach(btn => {
         btn.onclick = async () => { if(confirm('Reset Device?')) { await api.resetDevice(btn.dataset.id); window.router.resolve(); } };
-    });
-    
-    document.querySelectorAll('.force-reset-pw').forEach(btn => {
-         btn.onclick = async () => {
-            const content = `<input type="password" id="force-new-pw" required />`;
-            await UI.modal('Reset Pass', content, async () => {
-                const p = document.getElementById('force-new-pw').value;
-                if(!p) return false;
-                await api.changePassword(btn.dataset.id, p);
-                return true;
-            });
-        };
     });
 };
 
