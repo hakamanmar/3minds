@@ -18,11 +18,11 @@ const AdminPage = async () => {
         </div>`;
     }
 
-    // Bind delete function globally to fix any "click" issues
+    // هذه الدوال لازم تكون معرّفة "عالمياً" حتى تشتغل بضمان
     window.deleteAnnouncement = async (id) => {
-        if (confirm('هل أنت متأكد من حذف التبليغ؟')) {
+        if (confirm('هل أنت متأكد من حذف هذا التبليغ؟')) {
             await api.deleteAnnouncement(id);
-            window.router.resolve(); // Refresh page
+            location.reload(); // تحديث الصفحة للتأكيد
         }
     };
 
@@ -35,7 +35,7 @@ const AdminPage = async () => {
             UI.toast('تم التعديل');
             return true;
         });
-        if (data) window.router.resolve();
+        if (data) location.reload();
     };
 
     return `
@@ -65,17 +65,23 @@ const AdminPage = async () => {
                     ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
                     ${announcements.map(a => `
                         <div style="padding: 1rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: flex-start;">
-                            <div>
+                            <div style="flex: 1;">
                                 <p style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-main); font-weight: 500;">${a.content}</p>
-                                <span style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
-                                    <i class="ph ph-clock"></i> ${a.created_at}
+                                <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                                    <i class="ph ph-clock"></i> ${a.created_at || 'Now'}
                                 </span>
                             </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn" onclick="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" style="color: var(--primary); border: none;">
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <button type="button" 
+                                        onmousedown="window.editAnnouncement('${a.id}', '${a.content.replace(/'/g, "\\'")}')" 
+                                        style="background: none; border: none; cursor: pointer; color: var(--primary); font-size: 1.4rem;" 
+                                        title="تعديل">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button>
-                                <button class="btn" onclick="window.deleteAnnouncement('${a.id}')" style="color: #ef4444; border: none;">
+                                <button type="button" 
+                                        onmousedown="window.deleteAnnouncement('${a.id}')" 
+                                        style="background: none; border: none; cursor: pointer; color: #ef4444; font-size: 1.4rem;" 
+                                        title="حذف">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -92,6 +98,7 @@ const AdminPage = async () => {
                         <i class="ph ph-plus"></i> <span>إضافة مادة</span>
                     </button>
                 </div>
+                <!-- ... Subjects List ... -->
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     ${subjects.map(s => `
                         <div style="padding: 1rem; border: 1px solid var(--border); border-radius: 10px;">
@@ -143,7 +150,7 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
-    // Only bind "Add" buttons here, delete/edit are bound globally in the render function
+    // Add Announcement
     const addAnnBtn = document.getElementById('add-announcement-btn');
     if (addAnnBtn) {
         addAnnBtn.onclick = async () => {
@@ -159,9 +166,6 @@ AdminPage.init = () => {
         };
     }
 
-    // Keep other button bindings (Subjects, Students, Lessons)...
-    // (Copy pasting the same logic for other buttons as before for brevity, OR use the previous logic)
-    // ...
     // Subject Logic
     document.querySelectorAll('.edit-subject-btn').forEach(btn => {
         btn.onclick = async () => {
