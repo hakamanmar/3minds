@@ -63,8 +63,6 @@ def login():
     conn.close()
     
     if user and check_password_hash(user['password'], data.get('password')):
-        # Device Check Logic
-        # (Simplified for now - user stays logged on browser)
         return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
     return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
@@ -89,28 +87,41 @@ def handle_subject(id):
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    if request.method == 'DELETE':
-        c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
-        c.execute('DELETE FROM subjects WHERE id = %s', (id,))
-        conn.commit()
+    try:
+        if request.method == 'DELETE':
+            c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
+            c.execute('DELETE FROM subjects WHERE id = %s', (id,))
+            conn.commit()
+            return jsonify({'success': True})
+            
+        if request.method == 'PUT':
+            data = request.json
+            c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', 
+                     (data['title'], data['code'], data['description'], data['color'], id))
+            conn.commit()
+            return jsonify({'success': True})
+            
+        # FIXED: Get Subject and Lessons Separately to avoid errors
+        c.execute('SELECT * FROM subjects WHERE id = %s', (id,))
+        subject = c.fetchone()
+        
+        if not subject:
+            return jsonify({'error': 'Subject not found'}), 404
+            
+        c.execute('SELECT * FROM lessons WHERE subject_id = %s ORDER BY id ASC', (id,))
+        lessons = c.fetchall()
+        
+        return jsonify({
+            'subject': dict(subject),
+            'lessons': [dict(l) for l in lessons]
+        })
+
+    except Exception as e:
+        print(f"Error handling subject {id}: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
         c.close()
         conn.close()
-        return jsonify({'success': True})
-        
-    if request.method == 'PUT':
-        data = request.json
-        c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', 
-                 (data['title'], data['code'], data['description'], data['color'], id))
-        conn.commit()
-        c.close()
-        conn.close()
-        return jsonify({'success': True})
-        
-    c.execute('SELECT * FROM subjects WHERE id = %s', (id,))
-    subject = c.fetchone()
-    c.close()
-    conn.close()
-    return jsonify(dict(subject) if subject else {})
 
 @app.route('/api/subjects/<int:id>/lessons', methods=['GET'])
 def get_lessons(id):
@@ -130,7 +141,6 @@ def add_lesson():
     c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)', (data['subject_id'], data['title'], data['url'], data['type']))
     conn.commit()
     
-    # Telegram Notification for Lesson
     try:
         c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
         subject_title = c.fetchone()[0]
