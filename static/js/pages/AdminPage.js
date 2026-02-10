@@ -5,9 +5,11 @@ import { UI } from '../ui.js';
 const AdminPage = async () => {
     let subjects = [];
     let users = [];
+    let announcements = [];
     try {
         subjects = await api.getSubjects();
         users = await api.getUsers();
+        announcements = await api.getAnnouncements();
     } catch (e) {
         console.error(e);
         return `<div class="card error-card" style="padding: 2rem; text-align: center; color: #ef4444;">
@@ -31,6 +33,29 @@ const AdminPage = async () => {
         </div>
 
         <div class="grid-auto-fit" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+            
+            <!-- Announcements Management -->
+            <div class="card" style="grid-column: span 2;">
+                <div class="flex-between mb-4">
+                    <h3>📢 التبليغات والإعلانات</h3>
+                    <button id="add-announcement-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 8px;">
+                        <i class="ph ph-plus"></i>
+                        <span>تبليغ جديد</span>
+                    </button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    ${announcements.length === 0 ? '<p style="color: var(--text-muted); text-align: center;">لا توجد تبليغات</p>' : ''}
+                    ${announcements.map(a => `
+                        <div style="padding: 0.8rem; border: 1px dashed var(--primary); border-radius: 8px; background: rgba(79, 70, 229, 0.05); display: flex; justify-content: space-between; align-items: center;">
+                            <p style="margin: 0; width: 85%;">${a.content}</p>
+                            <button class="btn delete-ann-btn" data-id="${a.id}" style="color: #ef4444; border: none;">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
             <!-- Subject Management -->
             <div class="card">
                 <div class="flex-between mb-4">
@@ -71,7 +96,7 @@ const AdminPage = async () => {
                 </div>
             </div>
 
-            <!-- Student & Device Management -->
+            <!-- Student Management -->
             <div class="card">
                 <div class="flex-between mb-4">
                     <h3>${i18n.t('manage_students')}</h3>
@@ -107,7 +132,30 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
-    // Edit Subject (تعديل المادة)
+    // Add Announcement
+    document.getElementById('add-announcement-btn').onclick = async () => {
+        const content = `<textarea id="ann-content" placeholder="اكتب نص التبليغ هنا..." style="height: 100px;"></textarea>`;
+        const data = await UI.modal('إضافة تبليغ جديد', content, async () => {
+            const text = document.getElementById('ann-content').value;
+            if (!text) return false;
+            await api.addAnnouncement(text);
+            UI.toast('تم النشر');
+            return true;
+        });
+        if (data) window.router.resolve();
+    };
+
+    // Delete Announcement
+    document.querySelectorAll('.delete-ann-btn').forEach(btn => {
+        btn.onclick = async () => {
+            if (confirm('هل أنت متأكد من حذف التبليغ؟')) {
+                await api.deleteAnnouncement(btn.dataset.id);
+                window.router.resolve();
+            }
+        };
+    });
+
+    // Edit Subject
     document.querySelectorAll('.edit-subject-btn').forEach(btn => {
         btn.onclick = async () => {
             const { id, title, code, desc, color } = btn.dataset;
@@ -145,7 +193,7 @@ AdminPage.init = () => {
         };
     });
 
-    // Add Lesson
+    // Rest of the handlers (Add Lesson, Add Student, etc... same as before)
     document.querySelectorAll('.add-lesson-btn').forEach(btn => {
         btn.onclick = async () => {
             const subjectId = btn.dataset.id;
@@ -177,11 +225,9 @@ AdminPage.init = () => {
         };
     });
 
-    // Add Subject
-    const addSubjectBtn = document.getElementById('add-subject-btn');
-    if (addSubjectBtn) {
-        addSubjectBtn.onclick = async () => {
-            const content = `
+    if (document.getElementById('add-subject-btn')) {
+        document.getElementById('add-subject-btn').onclick = async () => {
+             const content = `
                 <input type="text" name="title" id="new-sub-title" placeholder="${i18n.t('title')}" class="mb-4" />
                 <input type="text" name="code" id="new-sub-code" placeholder="${i18n.t('code')}" class="mb-4" />
                 <textarea name="description" id="new-sub-desc" placeholder="${i18n.t('description')}" class="mb-4"></textarea>
@@ -202,36 +248,32 @@ AdminPage.init = () => {
             if (data) window.router.resolve();
         };
     }
-
-    // Add Student
-    const addStudentHandler = async () => {
-        const content = `
-            <input type="text" name="email" id="new-std-email" placeholder="student.id" class="mb-4" />
-            <input type="password" name="password" id="new-std-pass" placeholder="Temporary Password" />
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Identifiers only (e.g. user001)</p>
-        `;
-        const data = await UI.modal(i18n.t('manage_students'), content, async (data) => {
-            const email = document.getElementById('new-std-email').value;
-            const password = document.getElementById('new-std-pass').value;
-            if (!email || !password) return false;
-
-            const res = await api.addStudent(email, password);
-            if (res.success) {
-                UI.toast(i18n.t('success'));
-                return true;
-            } else {
-                UI.toast(res.error || i18n.t('error'), 'error');
-                return false;
-            }
-        });
-        if (data) window.router.resolve();
-    };
     
     if (document.getElementById('add-student-btn')) {
-        document.getElementById('add-student-btn').onclick = addStudentHandler;
+        document.getElementById('add-student-btn').onclick = async () => {
+            const content = `
+                <input type="text" name="email" id="new-std-email" placeholder="student.id" class="mb-4" />
+                <input type="password" name="password" id="new-std-pass" placeholder="Temporary Password" />
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Identifiers only (e.g. user001)</p>
+            `;
+            const data = await UI.modal(i18n.t('manage_students'), content, async (data) => {
+                const email = document.getElementById('new-std-email').value;
+                const password = document.getElementById('new-std-pass').value;
+                if (!email || !password) return false;
+    
+                const res = await api.addStudent(email, password);
+                if (res.success) {
+                    UI.toast(i18n.t('success'));
+                    return true;
+                } else {
+                    UI.toast(res.error || i18n.t('error'), 'error');
+                    return false;
+                }
+            });
+            if (data) window.router.resolve();
+        };
     }
 
-    // Reset Device
     document.querySelectorAll('.reset-device-btn').forEach(btn => {
         btn.onclick = async () => {
             const id = btn.dataset.id;
@@ -243,7 +285,6 @@ AdminPage.init = () => {
         };
     });
 
-    // Subject Deletion
     document.querySelectorAll('.delete-subject-btn').forEach(btn => {
         btn.onclick = async () => {
             if (confirm(i18n.t('confirm_delete'))) {
@@ -253,7 +294,6 @@ AdminPage.init = () => {
         };
     });
 
-    // Force Password Reset
     document.querySelectorAll('.force-reset-pw').forEach(btn => {
         btn.onclick = async () => {
             const id = btn.dataset.id;
