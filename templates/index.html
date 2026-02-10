@@ -2,46 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">    <title>Academic Hub | Student Platform</title>
-    
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Styles -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3Minds Platform</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    
-    <!-- Icons (Phosphor Icons - clean & modern) -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="app" class="app-container">
         <!-- Header -->
         <header class="main-header">
-            <a href="#" class="logo" onclick="window.router.navigate('/')">
-                <i class="ph ph-graduation-cap"></i>
-                AcademicHub
+            <a href="#" class="logo" onclick="window.router.navigate('/')" style="display: flex; align-items: center; text-decoration: none;">
+                <!-- استخدام الصورة اللي رفعتها -->
+                <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 55px; object-fit: contain;">
             </a>
-            <nav id="nav-menu">
-                <!-- Injected via JS based on Auth -->
-            </nav>
+            <nav id="nav-menu"></nav>
         </header>
 
-        <!-- Main Content Area -->
         <main id="main-content">
-            <!-- Dynamic Content -->
             <div class="loader-container" style="display:grid; place-items:center; height: 50vh;">
                 <p>Loading...</p>
             </div>
         </main>
 
-        <!-- Toast Notifications Container -->
         <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;"></div>
     </div>
-
-    <!-- Main Script -->
     <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
-
