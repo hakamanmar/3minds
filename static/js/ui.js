@@ -4,10 +4,11 @@ import { i18n } from './i18n.js';
 export const UI = {
     renderNavbar(user) {
         return `
-            <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 0;">
-                <div class="logo" onclick="window.router.navigate('/')" style="cursor: pointer; display: flex; align-items: center;">
-                    <!-- استخدام الصورة اللي رفعتها -->
-                    <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 60px; object-fit: contain;">
+            <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding: 0.5rem 0;">
+                <div class="logo" onclick="window.router.navigate('/')" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <!-- اللوجو المكبر والاسم -->
+                    <img src="/static/5213008082009529582_121.jpg" alt="3Minds" style="height: 65px; object-fit: contain;">
+                    <span style="font-weight: 800; font-size: 1.6rem; color: #4f46e5; letter-spacing: -0.5px;">3Minds</span>
                 </div>
                 
                 <div class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
