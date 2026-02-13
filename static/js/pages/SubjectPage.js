@@ -69,8 +69,20 @@ const SubjectPage = async (params) => {
                 `<div class="grid-auto-fit" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                     ${items.map(item => `
                         <div class="card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
-                            <h3>${item.title || item.filename}</h3>
-                            <a href="${item.url || '#'}" target="_blank" class="btn btn-primary">عرض</a>
+                            <h3 style="margin-bottom: 0.5rem;">${item.title || item.filename}</h3>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <a href="${item.url || '#'}" target="_blank" class="btn btn-primary" style="flex: 1; text-align: center;">
+                                    <i class="ph ph-eye" style="margin-left: 5px;"></i>
+                                    عرض
+                                </a>
+                                <a href="${item.url ? item.url.replace('/view?', '/uc?export=download&') : '#'}" 
+                                   download 
+                                   class="btn" 
+                                   style="flex: 1; text-align: center; background: #10b981; color: white;">
+                                    <i class="ph ph-download-simple" style="margin-left: 5px;"></i>
+                                    تحميل
+                                </a>
+                            </div>
                         </div>
                     `).join('')}
                 </div>`
