@@ -23,11 +23,6 @@ const ViewerPage = async (params) => {
         ? `https://drive.google.com/uc?export=download&id=${fileId}`
         : fileUrl;
 
-    // رابط فتح في Google Docs للترجمة
-    const docsViewUrl = fileId
-        ? `https://docs.google.com/document/d/${fileId}/edit`
-        : fileUrl;
-
     return `
         <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <button class="btn" onclick="window.history.back()" style="color: var(--text-muted); padding: 0.5rem 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
@@ -35,12 +30,12 @@ const ViewerPage = async (params) => {
             </button>
             
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <button onclick="showTranslationHelp()" class="btn" style="background: #3b82f6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <button id="translationHelpBtn" class="btn" style="background: #3b82f6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
                     <i class="ph ph-translate"></i>
                     كيف أترجم؟
                 </button>
                 
-                <button onclick="openInDocs()" class="btn" style="background: #8b5cf6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <button id="openInDocsBtn" class="btn" style="background: #8b5cf6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
                     <i class="ph ph-file-text"></i>
                     فتح للترجمة
                 </button>
@@ -64,7 +59,7 @@ const ViewerPage = async (params) => {
                     <i class="ph ph-lightbulb" style="font-size: 1.5rem;"></i>
                     طريقة الترجمة السريعة
                 </h3>
-                <button onclick="document.getElementById('translation-help').style.display='none'" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; cursor: pointer;">
+                <button id="closeHelpBtn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; cursor: pointer;">
                     ✕
                 </button>
             </div>
@@ -99,40 +94,61 @@ const ViewerPage = async (params) => {
                 allow="autoplay"
             ></iframe>
         </div>
-
-        <script>
-            // إظهار شريط المساعدة
-            function showTranslationHelp() {
-                const helpBox = document.getElementById('translation-help');
-                helpBox.style.display = 'block';
-                helpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-
-            // فتح الملف في Google Docs للترجمة الأسهل
-            function openInDocs() {
-                const fileId = '${fileId}';
-                if (fileId) {
-                    // نفتح الملف في Google Drive viewer مع خيار الترجمة
-                    window.open('https://drive.google.com/file/d/' + fileId + '/view', '_blank');
-                } else {
-                    alert('عذراً، الملف غير متوفر');
-                }
-            }
-
-            // رسالة توضيحية عند تحميل الصفحة لأول مرة
-            window.addEventListener('load', function() {
-                // نعرض نصيحة سريعة بعد ثانيتين
-                setTimeout(function() {
-                    const hasSeenTip = localStorage.getItem('translation_tip_seen');
-                    if (!hasSeenTip) {
-                        showTranslationHelp();
-                        localStorage.setItem('translation_tip_seen', 'true');
-                    }
-                }, 2000);
-            });
-        </script>
     `;
 };
 
-ViewerPage.init = () => {};
+// هذا الـ init function راح يشتغل بعد ما الصفحة تحمّل
+ViewerPage.init = (params) => {
+    const fileUrl = decodeURIComponent(params.url || '');
+    const fileId = extractFileId(fileUrl);
+
+    // زر "كيف أترجم؟"
+    const helpBtn = document.getElementById('translationHelpBtn');
+    if (helpBtn) {
+        helpBtn.addEventListener('click', () => {
+            const helpBox = document.getElementById('translation-help');
+            if (helpBox) {
+                helpBox.style.display = 'block';
+                helpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    }
+
+    // زر إغلاق المساعدة
+    const closeBtn = document.getElementById('closeHelpBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            const helpBox = document.getElementById('translation-help');
+            if (helpBox) {
+                helpBox.style.display = 'none';
+            }
+        });
+    }
+
+    // زر "فتح للترجمة"
+    const docsBtn = document.getElementById('openInDocsBtn');
+    if (docsBtn) {
+        docsBtn.addEventListener('click', () => {
+            if (fileId) {
+                window.open('https://drive.google.com/file/d/' + fileId + '/view', '_blank');
+            } else {
+                alert('عذراً، الملف غير متوفر');
+            }
+        });
+    }
+
+    // عرض نصيحة للمستخدمين الجدد
+    setTimeout(() => {
+        const hasSeenTip = localStorage.getItem('translation_tip_seen');
+        if (!hasSeenTip) {
+            const helpBox = document.getElementById('translation-help');
+            if (helpBox) {
+                helpBox.style.display = 'block';
+                helpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            localStorage.setItem('translation_tip_seen', 'true');
+        }
+    }, 2000);
+};
+
 export default ViewerPage;
