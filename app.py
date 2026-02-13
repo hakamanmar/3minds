@@ -49,6 +49,7 @@ def send_telegram(message):
 @app.route('/admin')
 @app.route('/subjects')
 @app.route('/subject/<int:id>')
+@app.route('/viewer')
 def index(id=None):
     return render_template('index.html')
 
@@ -259,3 +260,4 @@ def handle_announcements():
 
 if __name__ == '__main__':
     app.run()
+
