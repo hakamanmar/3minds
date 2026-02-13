@@ -6,13 +6,15 @@ import LoginPage from './pages/LoginPage.js';
 import SubjectPage from './pages/SubjectPage.js';
 import AdminPage from './pages/AdminPage.js';
 import PasswordChangePage from './pages/PasswordChangePage.js';
+import ViewerPage from './pages/ViewerPage.js';
 
 const routes = {
     '/': HomePage,
     '/login': LoginPage,
     '/admin': AdminPage,
     '/subject/:id': SubjectPage,
-    '/change-password': PasswordChangePage
+    '/change-password': PasswordChangePage,
+    '/viewer': ViewerPage
 };
 
 class Router {
@@ -35,8 +37,16 @@ class Router {
 
     async resolve() {
         const path = window.location.pathname;
+        const search = window.location.search;
         let Component = routes[path];
         let params = {};
+
+        // Parse query parameters for /viewer
+        if (path === '/viewer') {
+            const urlParams = new URLSearchParams(search);
+            params.url = urlParams.get('url');
+            params.name = urlParams.get('name');
+        }
 
         if (!Component) {
             if (path.startsWith('/subject/')) {
