@@ -2,6 +2,21 @@
 import { api, auth } from '../api.js';
 import { i18n } from '../i18n.js';
 
+// دالة لتحويل رابط Google Drive للتحميل المباشر
+const getDownloadLink = (url) => {
+    if (!url) return '#';
+    
+    // استخراج FILE_ID من رابط Google Drive
+    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (fileIdMatch && fileIdMatch[1]) {
+        const fileId = fileIdMatch[1];
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    }
+    
+    // إذا كان الرابط مو من Google Drive، نرجع الرابط نفسه
+    return url;
+};
+
 const SubjectPage = async (params) => {
     const id = params.id;
     let subject = {};
@@ -16,14 +31,13 @@ const SubjectPage = async (params) => {
         }
     } catch (e) {
         console.error("FULL ERROR:", e);
-        // هنا راح نعرض الخطأ بالضبط
         errorDetails = e.message || JSON.stringify(e);
         
         subject = { 
             title: "فشل التحميل", 
             code: "ERR", 
             color: "#ef4444", 
-            description: `السبب: ${errorDetails}` // راح يطلعلك السبب بالشاشة
+            description: `السبب: ${errorDetails}`
         };
     }
 
@@ -36,12 +50,10 @@ const SubjectPage = async (params) => {
                 <i class="ph ph-arrow-right"></i> ${i18n.t('back')}
             </button>
             
-            <!-- لوحة المادة (أو لوحة الخطأ) -->
             <div class="glass-panel" style="padding: 2rem; border-right: 6px solid ${subject.color || '#4f46e5'}; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                 <h1 style="margin-bottom: 0.5rem; color: var(--text-main);">${subject.title || 'Untitled'}</h1>
                 <p class="code" style="color: ${subject.color || '#4f46e5'}; font-weight: bold; font-family: monospace; font-size: 1.1em;">${subject.code || ''}</p>
                 
-                <!-- عرض تفاصيل الخطأ باللون الأحمر -->
                 <p style="color: ${errorDetails ? 'red' : 'var(--text-muted)'}; margin-top: 0.5rem; direction: ltr; font-family: monospace;">
                     ${subject.description || ''}
                 </p>
@@ -75,8 +87,8 @@ const SubjectPage = async (params) => {
                                     <i class="ph ph-eye" style="margin-left: 5px;"></i>
                                     عرض
                                 </a>
-                                <a href="${item.url ? item.url.replace('/view?', '/uc?export=download&') : '#'}" 
-                                   download 
+                                <a href="${getDownloadLink(item.url)}" 
+                                   target="_blank"
                                    class="btn" 
                                    style="flex: 1; text-align: center; background: #10b981; color: white;">
                                     <i class="ph ph-download-simple" style="margin-left: 5px;"></i>
@@ -91,6 +103,5 @@ const SubjectPage = async (params) => {
     `;
 };
 
-// ... (باقي الكود نفسه)
 SubjectPage.init = () => {}; 
 export default SubjectPage;
