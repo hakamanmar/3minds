@@ -1,4 +1,4 @@
-/* ViewerPage.js - عارض الملفات المدمج مع الترجمة */
+/* ViewerPage.js - عارض الملفات مع ترجمة المحتوى */
 import { i18n } from '../i18n.js';
 
 // دالة لاستخراج FILE_ID من رابط Google Drive
@@ -8,21 +8,10 @@ const extractFileId = (url) => {
     return match ? match[1] : null;
 };
 
-// دالة لكشف نوع المتصفح
-const detectBrowser = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    if (userAgent.includes('chrome') && !userAgent.includes('edg')) return 'chrome';
-    if (userAgent.includes('firefox')) return 'firefox';
-    if (userAgent.includes('safari') && !userAgent.includes('chrome')) return 'safari';
-    if (userAgent.includes('edg')) return 'edge';
-    return 'other';
-};
-
 const ViewerPage = async (params) => {
     const fileUrl = decodeURIComponent(params.url || '');
     const fileName = decodeURIComponent(params.name || 'ملف');
     const fileId = extractFileId(fileUrl);
-    const browser = detectBrowser();
     
     // رابط العرض المدمج من Google Drive
     const embedUrl = fileId 
@@ -34,49 +23,10 @@ const ViewerPage = async (params) => {
         ? `https://drive.google.com/uc?export=download&id=${fileId}`
         : fileUrl;
 
-    // تعليمات الترجمة حسب المتصفح
-    const browserInstructions = {
-        chrome: `
-            <p style="margin: 0 0 0.75rem 0; font-weight: 600;">🌐 أنت تستخدم جوجل كروم (Chrome):</p>
-            <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8;">
-                <li>اضغط بـ <strong>زر الماوس اليمين</strong> في أي مكان بالصفحة هذي</li>
-                <li>اختر <strong>"ترجمة إلى العربية"</strong> (Translate to Arabic)</li>
-                <li>أو اضغط على أيقونة الترجمة في شريط العنوان</li>
-            </ol>
-        `,
-        firefox: `
-            <p style="margin: 0 0 0.75rem 0; font-weight: 600;">🦊 أنت تستخدم فايرفوكس (Firefox):</p>
-            <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8;">
-                <li>اضغط على أيقونة الترجمة 🌐 في شريط العنوان (إذا موجودة)</li>
-                <li>أو اضغط زر <strong>"فتح في Drive"</strong> أسفل</li>
-                <li>في الصفحة الجديدة، استخدم ترجمة المتصفح</li>
-            </ol>
-        `,
-        safari: `
-            <p style="margin: 0 0 0.75rem 0; font-weight: 600;">🧭 أنت تستخدم سفاري (Safari):</p>
-            <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8;">
-                <li>اضغط على أيقونة <strong>aA</strong> في شريط العنوان</li>
-                <li>اختر <strong>"ترجمة إلى العربية"</strong></li>
-                <li>أو اضغط زر <strong>"فتح في Drive"</strong> واستخدم الترجمة هناك</li>
-            </ol>
-        `,
-        edge: `
-            <p style="margin: 0 0 0.75rem 0; font-weight: 600;">🌊 أنت تستخدم إيدج (Edge):</p>
-            <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8;">
-                <li>اضغط بـ <strong>زر الماوس اليمين</strong> في أي مكان بالصفحة</li>
-                <li>اختر <strong>"ترجمة"</strong> (Translate)</li>
-                <li>أو اضغط على أيقونة الترجمة في شريط العنوان</li>
-            </ol>
-        `,
-        other: `
-            <p style="margin: 0 0 0.75rem 0; font-weight: 600;">🌐 متصفحك:</p>
-            <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8;">
-                <li>ابحث عن أيقونة الترجمة في شريط العنوان</li>
-                <li>أو اضغط بزر الماوس اليمين واختر "ترجمة"</li>
-                <li>أو اضغط زر <strong>"فتح في Drive"</strong> واستخدم الترجمة هناك</li>
-            </ol>
-        `
-    };
+    // رابط للعرض في صفحة منفصلة (للترجمة)
+    const viewUrl = fileId
+        ? `https://drive.google.com/file/d/${fileId}/view`
+        : fileUrl;
 
     return `
         <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
@@ -85,44 +35,37 @@ const ViewerPage = async (params) => {
             </button>
             
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <button id="translationHelpBtn" class="btn" style="background: #3b82f6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                <button id="translateBtn" class="btn" style="background: #3b82f6; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600;">
                     <i class="ph ph-translate"></i>
-                    كيف أترجم الملف؟
+                    ترجمة الملف
                 </button>
                 
                 <a href="${downloadUrl}" target="_blank" class="btn" style="background: #10b981; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; text-decoration: none;">
                     <i class="ph ph-download-simple"></i>
                     تحميل
                 </a>
-                
-                <a href="${fileUrl}" target="_blank" class="btn" style="background: #6366f1; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; text-decoration: none;">
-                    <i class="ph ph-arrow-square-out"></i>
-                    فتح في Drive
-                </a>
             </div>
         </div>
 
-        <!-- شريط الإرشادات للترجمة -->
-        <div id="translation-help" style="display: none; margin-bottom: 1rem; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); animation: slideDown 0.3s ease;">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                    <i class="ph ph-lightbulb" style="font-size: 1.5rem;"></i>
-                    طريقة ترجمة الملف
-                </h3>
-                <button id="closeHelpBtn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 1.2rem;">
+        <!-- رسالة الترجمة -->
+        <div id="translation-message" style="display: none; margin-bottom: 1rem; padding: 1.25rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); animation: slideDown 0.3s ease;">
+            <div style="display: flex; align-items: start; gap: 1rem;">
+                <i class="ph ph-info" style="font-size: 2rem; margin-top: 0.25rem;"></i>
+                <div style="flex: 1;">
+                    <h3 style="margin: 0 0 0.75rem 0; font-size: 1.1rem;">📖 كيفية ترجمة محتوى الملف:</h3>
+                    <ol style="margin: 0; padding-right: 1.5rem; line-height: 1.8; opacity: 0.95;">
+                        <li>راح يفتح الملف في صفحة جديدة</li>
+                        <li><strong>اضغط بزر الماوس اليمين</strong> على محتوى الملف</li>
+                        <li>اختر <strong>"ترجمة إلى العربية"</strong> من القائمة</li>
+                        <li>استمتع بقراءة الملف مترجم! 🎉</li>
+                    </ol>
+                    <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(255,255,255,0.15); border-radius: 6px;">
+                        <p style="margin: 0; font-size: 0.9rem;">💡 <strong>ملاحظة:</strong> ترجمة المتصفح تشتغل بشكل أفضل في Chrome و Edge</p>
+                    </div>
+                </div>
+                <button id="closeMessageBtn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 1.2rem;">
                     ✕
                 </button>
-            </div>
-            
-            <div style="background: rgba(255,255,255,0.15); padding: 1.25rem; border-radius: 8px; backdrop-filter: blur(10px);">
-                ${browserInstructions[browser]}
-                
-                <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid rgba(255,255,255,0.3);">
-                
-                <div style="background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 6px;">
-                    <p style="margin: 0 0 0.5rem 0; font-weight: 600;">💡 نصيحة:</p>
-                    <p style="margin: 0; opacity: 0.95; line-height: 1.6;">إذا ما اشتغلت الترجمة، اضغط زر <strong>"فتح في Drive"</strong> فوق، وفي الصفحة الجديدة استخدم ترجمة المتصفح من القائمة أو كليك يمين.</p>
-                </div>
             </div>
         </div>
 
@@ -159,45 +102,45 @@ const ViewerPage = async (params) => {
 
 // هذا الـ init function راح يشتغل بعد ما الصفحة تحمّل
 ViewerPage.init = (params) => {
-    // زر "كيف أترجم الملف؟"
-    const helpBtn = document.getElementById('translationHelpBtn');
-    if (helpBtn) {
-        helpBtn.addEventListener('click', () => {
-            const helpBox = document.getElementById('translation-help');
-            if (helpBox) {
-                if (helpBox.style.display === 'none' || !helpBox.style.display) {
-                    helpBox.style.display = 'block';
-                    helpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                } else {
-                    helpBox.style.display = 'none';
-                }
+    const fileUrl = decodeURIComponent(params.url || '');
+    const fileId = extractFileId(fileUrl);
+    const viewUrl = fileId
+        ? `https://drive.google.com/file/d/${fileId}/view`
+        : fileUrl;
+
+    // زر "ترجمة الملف"
+    const translateBtn = document.getElementById('translateBtn');
+    if (translateBtn) {
+        translateBtn.addEventListener('click', () => {
+            // إظهار الرسالة التوضيحية
+            const message = document.getElementById('translation-message');
+            if (message) {
+                message.style.display = 'block';
+                message.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                
+                // إخفاء الرسالة بعد 15 ثانية
+                setTimeout(() => {
+                    message.style.display = 'none';
+                }, 15000);
             }
+
+            // فتح الملف في صفحة جديدة للترجمة
+            setTimeout(() => {
+                window.open(viewUrl, '_blank');
+            }, 800);
         });
     }
 
-    // زر إغلاق المساعدة
-    const closeBtn = document.getElementById('closeHelpBtn');
+    // زر إغلاق الرسالة
+    const closeBtn = document.getElementById('closeMessageBtn');
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
-            const helpBox = document.getElementById('translation-help');
-            if (helpBox) {
-                helpBox.style.display = 'none';
+            const message = document.getElementById('translation-message');
+            if (message) {
+                message.style.display = 'none';
             }
         });
     }
-
-    // عرض نصيحة للمستخدمين الجدد (أول مرة فقط)
-    setTimeout(() => {
-        const hasSeenTip = localStorage.getItem('translation_tip_seen');
-        if (!hasSeenTip) {
-            const helpBox = document.getElementById('translation-help');
-            if (helpBox) {
-                helpBox.style.display = 'block';
-                helpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-            localStorage.setItem('translation_tip_seen', 'true');
-        }
-    }, 2000);
 };
 
 export default ViewerPage;
