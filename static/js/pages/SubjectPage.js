@@ -6,14 +6,12 @@ import { i18n } from '../i18n.js';
 const getDownloadLink = (url) => {
     if (!url) return '#';
     
-    // استخراج FILE_ID من رابط Google Drive
     const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (fileIdMatch && fileIdMatch[1]) {
         const fileId = fileIdMatch[1];
         return `https://drive.google.com/uc?export=download&id=${fileId}`;
     }
     
-    // إذا كان الرابط مو من Google Drive، نرجع الرابط نفسه
     return url;
 };
 
@@ -79,24 +77,30 @@ const SubjectPage = async (params) => {
                     <p>${i18n.t('no_materials')}</p>
                 </div>` : 
                 `<div class="grid-auto-fit" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
-                    ${items.map(item => `
+                    ${items.map(item => {
+                        const encodedUrl = encodeURIComponent(item.url || '');
+                        const encodedName = encodeURIComponent(item.title || item.filename || 'ملف');
+                        
+                        return `
                         <div class="card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
                             <h3 style="margin-bottom: 0.5rem;">${item.title || item.filename}</h3>
                             <div style="display: flex; gap: 0.75rem;">
-                                <a href="${item.url || '#'}" target="_blank" class="btn btn-primary" style="flex: 1; text-align: center;">
+                                <button onclick="window.router.navigate('/viewer?url=${encodedUrl}&name=${encodedName}')" 
+                                        class="btn btn-primary" 
+                                        style="flex: 1; text-align: center;">
                                     <i class="ph ph-eye" style="margin-left: 5px;"></i>
                                     عرض
-                                </a>
+                                </button>
                                 <a href="${getDownloadLink(item.url)}" 
                                    target="_blank"
                                    class="btn" 
-                                   style="flex: 1; text-align: center; background: #10b981; color: white;">
+                                   style="flex: 1; text-align: center; background: #10b981; color: white; text-decoration: none;">
                                     <i class="ph ph-download-simple" style="margin-left: 5px;"></i>
                                     تحميل
                                 </a>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>`
             }
         </div>
