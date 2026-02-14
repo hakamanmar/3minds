@@ -1,4 +1,4 @@
-/* ViewerPage.js - عارض الملفات بسيط */
+/* ViewerPage.js - عارض الملفات مع تحميل آمن */
 import { i18n } from '../i18n.js';
 
 // دالة لاستخراج FILE_ID من رابط Google Drive
@@ -18,9 +18,12 @@ const ViewerPage = async (params) => {
         ? `https://drive.google.com/file/d/${fileId}/preview`
         : fileUrl;
 
-    // رابط التحميل المباشر
+    // تأكد من وجود امتداد .pdf
+    const safeFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+    
+    // رابط التحميل المُحسّن (يستخدم confirm parameter لتجنب مشاكل bin)
     const downloadUrl = fileId
-        ? `https://drive.google.com/uc?export=download&id=${fileId}`
+        ? `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`
         : fileUrl;
 
     return `
@@ -30,10 +33,10 @@ const ViewerPage = async (params) => {
             </button>
             
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <a href="${downloadUrl}" target="_blank" class="btn" style="background: #10b981; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; text-decoration: none;">
+                <button id="downloadBtn" class="btn" style="background: #10b981; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: none;">
                     <i class="ph ph-download-simple"></i>
                     تحميل الملف
-                </a>
+                </button>
             </div>
         </div>
 
@@ -55,5 +58,36 @@ const ViewerPage = async (params) => {
     `;
 };
 
-ViewerPage.init = () => {};
+ViewerPage.init = (params) => {
+    const fileUrl = decodeURIComponent(params.url || '');
+    const fileName = decodeURIComponent(params.name || 'ملف');
+    const fileId = extractFileId(fileUrl);
+    
+    // تأكد من وجود امتداد .pdf
+    const safeFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+    
+    // رابط التحميل المُحسّن
+    const downloadUrl = fileId
+        ? `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`
+        : fileUrl;
+
+    // زر التحميل مع معالجة خاصة
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            // إنشاء عنصر <a> مؤقت للتحميل
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = safeFileName;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            
+            // إضافة للـ DOM، ضغط، ثم حذف
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+};
+
 export default ViewerPage;
