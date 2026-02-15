@@ -10,12 +10,21 @@ import secrets
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# ===== إعدادات الأمان المشددة =====
+# ===== إعدادات الأمان المشددة للـ SESSIONS والـ COOKIES =====
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['SESSION_COOKIE_HTTPONLY'] = True  # منع JavaScript من الوصول للـ cookies
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS فقط في الإنتاج
+
+# إعدادات الكوكيز - الحماية القصوى
+app.config['SESSION_COOKIE_NAME'] = '3m_sec_session'  # اسم مخصص غير معروف
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # منع JavaScript من الوصول (XSS Protection)
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS فقط (مهم جداً)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'  # حماية من CSRF
+app.config['SESSION_COOKIE_PATH'] = '/'  # المسار المحدد
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # مدة الجلسة 30 دقيقة
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True  # تجديد الجلسة مع كل طلب
+
+# إعدادات أمان إضافية
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # حد أقصى 16MB للرفع
+app.config['JSON_SORT_KEYS'] = False  # تحسين الأداء
 
 # تتبع محاولات تسجيل الدخول الفاشلة (حماية من Brute Force)
 login_attempts = {}
@@ -61,6 +70,19 @@ def send_telegram(message):
             requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
         except: pass
 
+# ===== Security Headers Middleware =====
+@app.after_request
+def set_security_headers(response):
+    """إضافة رؤوس الأمان لكل استجابة"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Content Security Policy - حماية من XSS
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    return response
+
 # ===== دالة فحص محاولات تسجيل الدخول =====
 def check_login_attempts(email):
     """فحص إذا الحساب محظور مؤقتاً بسبب محاولات فاشلة كثيرة"""
@@ -86,6 +108,18 @@ def reset_login_attempts(email):
     """إعادة تعيين المحاولات عند نجاح تسجيل الدخول"""
     if email in login_attempts:
         del login_attempts[email]
+
+def regenerate_session():
+    """تجديد معرّف الجلسة لمنع Session Fixation"""
+    user_data = {
+        'user_id': session.get('user_id'),
+        'user_email': session.get('user_email'),
+        'user_role': session.get('user_role'),
+        'last_activity': session.get('last_activity')
+    }
+    session.clear()
+    session.update(user_data)
+    session.modified = True
 
 # ===== AUTHENTICATION DECORATORS =====
 def login_required(f):
@@ -201,8 +235,10 @@ def login():
         # نجح تسجيل الدخول - إعادة تعيين المحاولات
         reset_login_attempts(email)
         
+        # مسح الجلسة القديمة وإنشاء جلسة جديدة (حماية من Session Fixation)
+        session.clear()
+        
         # حفظ بيانات المستخدم في الـ session
-        session.clear()  # مسح أي session قديمة
         session['user_id'] = user['id']
         session['user_email'] = user['email']
         session['user_role'] = user['role']
@@ -214,6 +250,9 @@ def login():
         else:
             # الطلاب: Session عادية
             session.permanent = True
+        
+        # تجديد معرّف الجلسة
+        session.modified = True
         
         return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
     
