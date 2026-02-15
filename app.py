@@ -2,15 +2,25 @@ import os
 import requests
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
+import secrets
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123-CHANGE-THIS-IN-PRODUCTION')
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# ===== إعدادات الأمان المشددة =====
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # منع JavaScript من الوصول للـ cookies
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS فقط في الإنتاج
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'  # حماية من CSRF
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # مدة الجلسة 30 دقيقة
+
+# تتبع محاولات تسجيل الدخول الفاشلة (حماية من Brute Force)
+login_attempts = {}
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_TIME = timedelta(minutes=15)
 
 # Database Helpers
 def get_db():
@@ -24,11 +34,16 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS lessons (id SERIAL PRIMARY KEY, subject_id INTEGER, title TEXT, url TEXT, type TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS announcements (id SERIAL PRIMARY KEY, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     
-    # Create Admin User if not exists
+    # إنشاء حساب الأدمن بكلمة سر قوية جداً
     c.execute('SELECT count(*) FROM users WHERE email=%s', ('admin@3minds.edu',))
     if c.fetchone()[0] == 0:
+        # كلمة السر الجديدة: 3Minds@Secure#2026!Admin
         c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)', 
-                  ('admin@3minds.edu', generate_password_hash('3minds@admin2026'), 'admin'))
+                  ('admin@3minds.edu', generate_password_hash('3Minds@Secure#2026!Admin'), 'admin'))
+    else:
+        # تحديث كلمة السر للحساب الموجود
+        c.execute('UPDATE users SET password = %s WHERE email = %s',
+                  (generate_password_hash('3Minds@Secure#2026!Admin'), 'admin@3minds.edu'))
     conn.commit()
     c.close()
     conn.close()
@@ -46,6 +61,32 @@ def send_telegram(message):
             requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
         except: pass
 
+# ===== دالة فحص محاولات تسجيل الدخول =====
+def check_login_attempts(email):
+    """فحص إذا الحساب محظور مؤقتاً بسبب محاولات فاشلة كثيرة"""
+    if email in login_attempts:
+        attempts, last_attempt = login_attempts[email]
+        if attempts >= MAX_LOGIN_ATTEMPTS:
+            if datetime.now() - last_attempt < LOCKOUT_TIME:
+                return False, f"الحساب محظور مؤقتاً بسبب محاولات فاشلة متعددة. حاول بعد {int((LOCKOUT_TIME - (datetime.now() - last_attempt)).total_seconds() / 60)} دقيقة"
+            else:
+                # انتهت مدة الحظر، إعادة تعيين
+                login_attempts[email] = [0, datetime.now()]
+    return True, None
+
+def record_failed_login(email):
+    """تسجيل محاولة فاشلة"""
+    if email in login_attempts:
+        attempts, _ = login_attempts[email]
+        login_attempts[email] = [attempts + 1, datetime.now()]
+    else:
+        login_attempts[email] = [1, datetime.now()]
+
+def reset_login_attempts(email):
+    """إعادة تعيين المحاولات عند نجاح تسجيل الدخول"""
+    if email in login_attempts:
+        del login_attempts[email]
+
 # ===== AUTHENTICATION DECORATORS =====
 def login_required(f):
     """يتطلب تسجيل دخول المستخدم"""
@@ -53,6 +94,16 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'error': 'Unauthorized - Login required'}), 401
+        
+        # فحص صلاحية الجلسة
+        if 'last_activity' in session:
+            last_activity = session['last_activity']
+            if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
+                session.clear()
+                return jsonify({'error': 'Session expired - Please login again'}), 401
+        
+        # تحديث وقت آخر نشاط
+        session['last_activity'] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -62,6 +113,13 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'error': 'Unauthorized - Login required'}), 401
+        
+        # فحص صلاحية الجلسة
+        if 'last_activity' in session:
+            last_activity = session['last_activity']
+            if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
+                session.clear()
+                return jsonify({'error': 'Session expired - Please login again'}), 401
         
         # التحقق من أن المستخدم أدمن
         conn = get_db()
@@ -73,7 +131,9 @@ def admin_required(f):
         
         if not user or user['role'] != 'admin':
             return jsonify({'error': 'Forbidden - Admin access only'}), 403
-            
+        
+        # تحديث وقت آخر نشاط
+        session['last_activity'] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -84,6 +144,13 @@ def admin_page_required(f):
         if 'user_id' not in session:
             return redirect('/')
         
+        # فحص صلاحية الجلسة
+        if 'last_activity' in session:
+            last_activity = session['last_activity']
+            if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
+                session.clear()
+                return redirect('/')
+        
         conn = get_db()
         c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         c.execute('SELECT role FROM users WHERE id = %s', (session['user_id'],))
@@ -93,7 +160,9 @@ def admin_page_required(f):
         
         if not user or user['role'] != 'admin':
             return redirect('/')
-            
+        
+        # تحديث وقت آخر نشاط
+        session['last_activity'] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -113,21 +182,49 @@ def admin():
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+    
+    # فحص محاولات تسجيل الدخول
+    allowed, error_msg = check_login_attempts(email)
+    if not allowed:
+        return jsonify({'success': False, 'message': error_msg}), 429
+    
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    c.execute('SELECT * FROM users WHERE email = %s', (data.get('email'),))
+    c.execute('SELECT * FROM users WHERE email = %s', (email,))
     user = c.fetchone()
     c.close()
     conn.close()
     
-    if user and check_password_hash(user['password'], data.get('password')):
+    if user and check_password_hash(user['password'], password):
+        # نجح تسجيل الدخول - إعادة تعيين المحاولات
+        reset_login_attempts(email)
+        
         # حفظ بيانات المستخدم في الـ session
+        session.clear()  # مسح أي session قديمة
         session['user_id'] = user['id']
         session['user_email'] = user['email']
         session['user_role'] = user['role']
+        session['last_activity'] = datetime.now().isoformat()
+        
+        # ===== الأدمن: Session غير دائمة (تنتهي بإغلاق المتصفح) =====
+        if user['role'] == 'admin':
+            session.permanent = False  # لا يتم حفظ الجلسة بعد إغلاق المتصفح
+        else:
+            # الطلاب: Session عادية
+            session.permanent = True
         
         return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
-    return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
+    
+    # فشل تسجيل الدخول
+    record_failed_login(email)
+    remaining_attempts = MAX_LOGIN_ATTEMPTS - login_attempts.get(email, [0])[0]
+    
+    if remaining_attempts > 0:
+        return jsonify({'success': False, 'message': f'بيانات تسجيل الدخول غير صحيحة. المحاولات المتبقية: {remaining_attempts}'}), 401
+    else:
+        return jsonify({'success': False, 'message': 'تم تجاوز الحد الأقصى للمحاولات. الحساب محظور مؤقتاً لمدة 15 دقيقة'}), 429
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -138,6 +235,13 @@ def logout():
 def check_session():
     """للتحقق من حالة تسجيل الدخول"""
     if 'user_id' in session:
+        # فحص صلاحية الجلسة
+        if 'last_activity' in session:
+            last_activity = session['last_activity']
+            if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
+                session.clear()
+                return jsonify({'authenticated': False, 'reason': 'session_expired'})
+        
         return jsonify({
             'authenticated': True,
             'user': {
