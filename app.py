@@ -8,17 +8,20 @@ from datetime import datetime, timedelta
 from functools import wraps
 import secrets
 import hmac
-import hashlib
-import time
+import re
+from urllib.parse import urlparse
+import html
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
 # ===== إعدادات الأمان المشددة =====
-# مهم: استخدم SECRET_KEY ثابت في Production!
-if not os.environ.get('SECRET_KEY'):
-    raise ValueError("❌ SECRET_KEY must be set in environment variables for production!")
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    # في Development فقط - في Production لازم يكون في البيئة
+    SECRET_KEY = secrets.token_hex(32)
+    print("⚠️ Warning: Using auto-generated SECRET_KEY. Set SECRET_KEY environment variable for production!")
 
+app.config['SECRET_KEY'] = SECRET_KEY
 app.config['SESSION_COOKIE_NAME'] = '3m_sec_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
@@ -29,12 +32,24 @@ app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['JSON_SORT_KEYS'] = False
 
-# Rate Limiting - حفظ في الداتابيس بدل الذاكرة
+# Rate Limiting
 MAX_LOGIN_ATTEMPTS = 5
 MAX_ADMIN_ATTEMPTS = 3
 LOCKOUT_TIME = timedelta(minutes=15)
 ADMIN_LOCKOUT_TIME = timedelta(minutes=30)
-MAX_SUSPICIOUS_ATTEMPTS = 10
+
+# ===== Input Validation Rules =====
+VALIDATION_RULES = {
+    'email': {'min': 5, 'max': 255, 'pattern': r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'},
+    'password': {'min': 8, 'max': 128},
+    'title': {'min': 1, 'max': 200},
+    'description': {'min': 0, 'max': 1000},
+    'code': {'min': 1, 'max': 50},
+    'color': {'min': 4, 'max': 7, 'pattern': r'^#[0-9A-Fa-f]{3,6}$'},
+    'url': {'min': 5, 'max': 2000},
+    'content': {'min': 1, 'max': 5000},
+    'type': {'allowed': ['Video', 'PDF', 'File']}
+}
 
 # Database Helpers
 def get_db():
@@ -57,7 +72,6 @@ def init_db():
     except:
         pass
     
-    # جدول تسجيل محاولات الدخول
     c.execute('''CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY, 
         email TEXT, 
@@ -67,7 +81,6 @@ def init_db():
         user_agent TEXT
     )''')
     
-    # جدول Rate Limiting (يبقى بعد Restart)
     c.execute('''CREATE TABLE IF NOT EXISTS rate_limits (
         id SERIAL PRIMARY KEY,
         identifier TEXT UNIQUE,
@@ -75,7 +88,6 @@ def init_db():
         last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # حساب الأدمن
     c.execute('SELECT count(*) FROM users WHERE email=%s', ('admin@3minds.edu',))
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (email, password, role, is_active) VALUES (%s, %s, %s, %s)', 
@@ -104,13 +116,80 @@ def send_telegram(message):
         except: 
             pass
 
-# ===== Security Helpers =====
-def constant_time_compare(a, b):
-    """مقارنة بوقت ثابت لمنع Timing Attacks"""
-    return hmac.compare_digest(str(a), str(b))
+# ===== Input Validation & Sanitization =====
+def sanitize_input(text):
+    """تنظيف النص من HTML وJavaScript الخبيث"""
+    if not isinstance(text, str):
+        return str(text)
+    # إزالة HTML tags
+    text = html.escape(text)
+    # إزالة null bytes
+    text = text.replace('\x00', '')
+    return text.strip()
 
+def validate_field(field_name, value, rules=None):
+    """فحص صحة الحقل"""
+    if rules is None:
+        rules = VALIDATION_RULES.get(field_name, {})
+    
+    # التحقق من وجود القيمة
+    if value is None or value == '':
+        return False, f'{field_name} مطلوب'
+    
+    # تحويل إلى string للفحص
+    value_str = str(value).strip()
+    
+    # فحص الطول
+    if 'min' in rules and len(value_str) < rules['min']:
+        return False, f'{field_name} قصير جداً (الحد الأدنى {rules["min"]} أحرف)'
+    
+    if 'max' in rules and len(value_str) > rules['max']:
+        return False, f'{field_name} طويل جداً (الحد الأقصى {rules["max"]} حرف)'
+    
+    # فحص النمط (Pattern)
+    if 'pattern' in rules:
+        if not re.match(rules['pattern'], value_str):
+            return False, f'{field_name} صيغته غير صحيحة'
+    
+    # فحص القيم المسموحة
+    if 'allowed' in rules:
+        if value not in rules['allowed']:
+            return False, f'{field_name} قيمة غير مسموحة'
+    
+    return True, None
+
+def validate_url(url):
+    """فحص صحة الرابط"""
+    try:
+        result = urlparse(url)
+        # السماح فقط بـ http, https
+        if result.scheme not in ['http', 'https']:
+            return False, 'الرابط يجب أن يبدأ بـ http:// أو https://'
+        # منع javascript: و data: URIs
+        if result.scheme in ['javascript', 'data', 'file']:
+            return False, 'نوع الرابط غير مسموح'
+        return True, None
+    except:
+        return False, 'صيغة الرابط غير صحيحة'
+
+def validate_email(email):
+    """فحص صحة البريد الإلكتروني"""
+    return validate_field('email', email)
+
+def validate_integer(value, min_val=None, max_val=None):
+    """فحص صحة الرقم"""
+    try:
+        num = int(value)
+        if min_val is not None and num < min_val:
+            return False, f'القيمة يجب أن تكون أكبر من {min_val}'
+        if max_val is not None and num > max_val:
+            return False, f'القيمة يجب أن تكون أصغر من {max_val}'
+        return True, None
+    except:
+        return False, 'القيمة يجب أن تكون رقماً'
+
+# ===== Security Helpers =====
 def log_login_attempt(email, ip_address, success, user_agent=''):
-    """تسجيل محاولات تسجيل الدخول"""
     try:
         conn = get_db()
         c = conn.cursor()
@@ -123,7 +202,6 @@ def log_login_attempt(email, ip_address, success, user_agent=''):
         pass
 
 def get_client_ip():
-    """الحصول على IP الزائر"""
     if request.headers.get('X-Forwarded-For'):
         return request.headers.get('X-Forwarded-For').split(',')[0].strip()
     elif request.headers.get('X-Real-IP'):
@@ -131,7 +209,6 @@ def get_client_ip():
     return request.remote_addr or 'unknown'
 
 def check_rate_limit_db(identifier, max_attempts, lockout_time):
-    """فحص Rate Limit من الداتابيس (يبقى بعد Restart)"""
     try:
         conn = get_db()
         c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -147,7 +224,6 @@ def check_rate_limit_db(identifier, max_attempts, lockout_time):
                     remaining = int((lockout_time - (datetime.now() - last_attempt)).total_seconds() / 60)
                     return False, f"محظور مؤقتاً. حاول بعد {remaining} دقيقة"
                 else:
-                    # انتهت مدة الحظر
                     c.execute('UPDATE rate_limits SET attempts = 0, last_attempt = %s WHERE identifier = %s',
                               (datetime.now(), identifier))
                     conn.commit()
@@ -155,12 +231,10 @@ def check_rate_limit_db(identifier, max_attempts, lockout_time):
         c.close()
         conn.close()
         return True, None
-    except Exception as e:
-        print(f"Rate limit check error: {e}")
+    except:
         return True, None
 
 def record_failed_attempt_db(identifier):
-    """تسجيل محاولة فاشلة في الداتابيس"""
     try:
         conn = get_db()
         c = conn.cursor()
@@ -172,11 +246,10 @@ def record_failed_attempt_db(identifier):
         conn.commit()
         c.close()
         conn.close()
-    except Exception as e:
-        print(f"Record attempt error: {e}")
+    except:
+        pass
 
 def reset_attempts_db(identifier):
-    """إعادة تعيين المحاولات"""
     try:
         conn = get_db()
         c = conn.cursor()
@@ -190,7 +263,6 @@ def reset_attempts_db(identifier):
 # ===== Security Headers Middleware =====
 @app.after_request
 def set_security_headers(response):
-    """إضافة رؤوس الأمان لكل استجابة"""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
@@ -295,13 +367,22 @@ def admin():
 def login():
     try:
         data = request.json
-        email = data.get('email', '').strip()
+        email = sanitize_input(data.get('email', '')).strip()
         password = data.get('password', '')
+        
+        # فحص صحة البريد الإلكتروني
+        valid, error = validate_email(email)
+        if not valid:
+            return jsonify({'success': False, 'message': error}), 400
+        
+        # فحص صحة كلمة السر
+        valid, error = validate_field('password', password)
+        if not valid:
+            return jsonify({'success': False, 'message': error}), 400
         
         client_ip = get_client_ip()
         user_agent = request.headers.get('User-Agent', '')
         
-        # Rate Limiting من الداتابيس
         is_admin_attempt = email == 'admin@3minds.edu'
         identifier = f"login:{email}"
         max_attempts = MAX_ADMIN_ATTEMPTS if is_admin_attempt else MAX_LOGIN_ATTEMPTS
@@ -317,9 +398,6 @@ def login():
         c.execute('SELECT * FROM users WHERE email = %s', (email,))
         user = c.fetchone()
         
-        # Timing Attack Protection - نفس الوقت حتى لو المستخدم مو موجود
-        time.sleep(0.1)  # تأخير ثابت
-        
         if user and check_password_hash(user['password'], password):
             if user.get('is_active') == False:
                 c.close()
@@ -327,14 +405,12 @@ def login():
                 log_login_attempt(email, client_ip, False, user_agent)
                 return jsonify({'success': False, 'message': 'الحساب معطل'}), 403
             
-            # فحص Account Lock
             if user.get('locked_until'):
                 if datetime.now() < user['locked_until']:
                     c.close()
                     conn.close()
                     return jsonify({'success': False, 'message': 'الحساب محظور مؤقتاً'}), 429
             
-            # نجح تسجيل الدخول
             c.execute('UPDATE users SET last_login = %s, failed_attempts = 0, locked_until = NULL WHERE id = %s',
                       (datetime.now(), user['id']))
             conn.commit()
@@ -360,9 +436,7 @@ def login():
             
             return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
         
-        # فشل تسجيل الدخول
         if user:
-            # تحديث المحاولات الفاشلة
             failed = user.get('failed_attempts', 0) + 1
             locked_until = None
             if failed >= max_attempts:
@@ -376,7 +450,6 @@ def login():
         record_failed_attempt_db(identifier)
         log_login_attempt(email, client_ip, False, user_agent)
         
-        # عدم كشف إذا المستخدم موجود أو لا
         return jsonify({'success': False, 'message': 'بيانات تسجيل الدخول غير صحيحة'}), 401
         
     except Exception as e:
@@ -411,15 +484,48 @@ def check_session():
 def handle_subjects():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
     if request.method == 'POST':
         if 'user_id' not in session or session.get('user_role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            data = request.json
             
-        data = request.json
-        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)',
-                  (data['title'], data['description'], data['code'], data['color']))
-        conn.commit()
-        return jsonify({'success': True})
+            # فحص وتنظيف المدخلات
+            title = sanitize_input(data.get('title', ''))
+            description = sanitize_input(data.get('description', ''))
+            code = sanitize_input(data.get('code', ''))
+            color = sanitize_input(data.get('color', ''))
+            
+            # التحقق من صحة المدخلات
+            valid, error = validate_field('title', title)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('description', description)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('code', code)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('color', color)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)',
+                      (title, description, code, color))
+            conn.commit()
+            return jsonify({'success': True})
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            return jsonify({'error': 'خطأ في المدخلات'}), 400
+        finally:
+            c.close()
+            conn.close()
     
     c.execute('SELECT * FROM subjects ORDER BY id ASC')
     subs = c.fetchall()
@@ -429,6 +535,11 @@ def handle_subjects():
 
 @app.route('/api/subjects/<int:id>', methods=['GET', 'DELETE', 'PUT'])
 def handle_subject(id):
+    # فحص صحة ID
+    valid, error = validate_integer(id, min_val=1)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
@@ -445,10 +556,34 @@ def handle_subject(id):
         if request.method == 'PUT':
             if 'user_id' not in session or session.get('user_role') != 'admin':
                 return jsonify({'error': 'Unauthorized'}), 401
-                
+            
             data = request.json
+            
+            # فحص وتنظيف المدخلات
+            title = sanitize_input(data.get('title', ''))
+            code = sanitize_input(data.get('code', ''))
+            description = sanitize_input(data.get('description', ''))
+            color = sanitize_input(data.get('color', ''))
+            
+            # التحقق من صحة المدخلات
+            valid, error = validate_field('title', title)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('code', code)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('description', description)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('color', color)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
             c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', 
-                     (data['title'], data['code'], data['description'], data['color'], id))
+                     (title, code, description, color, id))
             conn.commit()
             return jsonify({'success': True})
             
@@ -474,6 +609,10 @@ def handle_subject(id):
 
 @app.route('/api/subjects/<int:id>/lessons', methods=['GET'])
 def get_lessons(id):
+    valid, error = validate_integer(id, min_val=1)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     c.execute('SELECT * FROM lessons WHERE subject_id = %s ORDER BY id ASC', (id,))
@@ -485,29 +624,64 @@ def get_lessons(id):
 @app.route('/api/admin/add-lesson', methods=['POST'])
 @admin_required
 def add_lesson():
-    data = request.json
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
-              (data['subject_id'], data['title'], data['url'], data['type']))
-    conn.commit()
-    
     try:
-        c.execute('SELECT title FROM subjects WHERE id = %s', (data['subject_id'],))
-        subject_title = c.fetchone()[0]
-        type_str = "فيديو" if data['type'] == 'Video' else "ملف"
-        msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {data['title']}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
-        send_telegram(msg)
-    except: 
-        pass
-    
-    c.close()
-    conn.close()
-    return jsonify({'success': True})
+        data = request.json
+        
+        # فحص وتنظيف المدخلات
+        subject_id = data.get('subject_id')
+        title = sanitize_input(data.get('title', ''))
+        url = sanitize_input(data.get('url', ''))
+        lesson_type = data.get('type', '')
+        
+        # التحقق من صحة المدخلات
+        valid, error = validate_integer(subject_id, min_val=1)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
+        valid, error = validate_field('title', title)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
+        valid, error = validate_url(url)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
+        valid, error = validate_field('type', lesson_type)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
+                  (subject_id, title, url, lesson_type))
+        conn.commit()
+        
+        try:
+            c.execute('SELECT title FROM subjects WHERE id = %s', (subject_id,))
+            result = c.fetchone()
+            if result:
+                subject_title = result[0]
+                type_str = "فيديو" if lesson_type == 'Video' else "ملف"
+                msg = f"📢 **محاضرة جديدة ({type_str})**\n\n📚 المادة: {subject_title}\n📝 العنوان: {title}\n\nتصفح المحاضرة الآن 👇\nhttps://3minds-academic.vercel.app"
+                send_telegram(msg)
+        except: 
+            pass
+        
+        c.close()
+        conn.close()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': 'خطأ في المدخلات'}), 400
 
 @app.route('/api/lessons/<int:id>', methods=['DELETE'])
 @admin_required
 def delete_lesson(id):
+    valid, error = validate_integer(id, min_val=1)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
     conn = get_db()
     c = conn.cursor()
     c.execute('DELETE FROM lessons WHERE id = %s', (id,))
@@ -524,6 +698,11 @@ def handle_users():
     
     if request.method == 'DELETE':
         user_id = request.args.get('id')
+        
+        valid, error = validate_integer(user_id, min_val=1)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
         c.execute('DELETE FROM users WHERE id = %s AND role != \'admin\'', (user_id,))
         conn.commit()
         c.close()
@@ -539,27 +718,46 @@ def handle_users():
 @app.route('/api/admin/add-student', methods=['POST'])
 @admin_required
 def add_student():
-    data = request.json
-    conn = get_db()
-    c = conn.cursor()
     try:
+        data = request.json
+        
+        email = sanitize_input(data.get('email', ''))
+        password = data.get('password', '')
+        
+        # التحقق من صحة المدخلات
+        valid, error = validate_email(email)
+        if not valid:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        valid, error = validate_field('password', password)
+        if not valid:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        conn = get_db()
+        c = conn.cursor()
         c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)',
-                  (data['email'], generate_password_hash(data['password']), 'student'))
+                  (email, generate_password_hash(password), 'student'))
         conn.commit()
-        return jsonify({'success': True})
-    except:
-        return jsonify({'success': False, 'error': 'User exists'})
-    finally:
         c.close()
         conn.close()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': 'المستخدم موجود مسبقاً'}), 400
 
 @app.route('/api/admin/reset-device', methods=['POST'])
 @admin_required
 def reset_device():
     data = request.json
+    user_id = data.get('user_id')
+    
+    valid, error = validate_integer(user_id, min_val=1)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE users SET device_id = NULL WHERE id = %s', (data['user_id'],))
+    c.execute('UPDATE users SET device_id = NULL WHERE id = %s', (user_id,))
     conn.commit()
     c.close()
     conn.close()
@@ -569,10 +767,21 @@ def reset_device():
 @login_required
 def change_password():
     data = request.json
+    user_id = data.get('user_id')
+    password = data.get('password', '')
+    
+    valid, error = validate_integer(user_id, min_val=1)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
+    valid, error = validate_field('password', password)
+    if not valid:
+        return jsonify({'error': error}), 400
+    
     conn = get_db()
     c = conn.cursor()
     c.execute('UPDATE users SET password = %s WHERE id = %s',
-              (generate_password_hash(data['password']), data['user_id']))
+              (generate_password_hash(password), user_id))
     conn.commit()
     c.close()
     conn.close()
@@ -586,33 +795,60 @@ def handle_announcements():
     if request.method == 'POST':
         if 'user_id' not in session or session.get('user_role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            data = request.json
+            content = sanitize_input(data.get('content', ''))
             
-        data = request.json
-        c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
-        conn.commit()
-        msg = f"🔔 **تبليغ هام**\n\n{data['content']}\n\nhttps://3minds-academic.vercel.app"
-        send_telegram(msg)
-        c.close()
-        conn.close()
-        return jsonify({'success': True})
+            valid, error = validate_field('content', content)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            c.execute('INSERT INTO announcements (content) VALUES (%s)', (content,))
+            conn.commit()
+            msg = f"🔔 **تبليغ هام**\n\n{content}\n\nhttps://3minds-academic.vercel.app"
+            send_telegram(msg)
+            c.close()
+            conn.close()
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'error': 'خطأ في المدخلات'}), 400
         
     if request.method == 'PUT':
         if 'user_id' not in session or session.get('user_role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 401
+        
+        try:
+            data = request.json
+            id = request.args.get('id')
+            content = sanitize_input(data.get('content', ''))
             
-        data = request.json
-        id = request.args.get('id')
-        c.execute('UPDATE announcements SET content = %s WHERE id = %s', (data['content'], id))
-        conn.commit()
-        c.close()
-        conn.close()
-        return jsonify({'success': True})
+            valid, error = validate_integer(id, min_val=1)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            valid, error = validate_field('content', content)
+            if not valid:
+                return jsonify({'error': error}), 400
+            
+            c.execute('UPDATE announcements SET content = %s WHERE id = %s', (content, id))
+            conn.commit()
+            c.close()
+            conn.close()
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'error': 'خطأ في المدخلات'}), 400
         
     if request.method == 'DELETE':
         if 'user_id' not in session or session.get('user_role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 401
-            
+        
         id = request.args.get('id')
+        
+        valid, error = validate_integer(id, min_val=1)
+        if not valid:
+            return jsonify({'error': error}), 400
+        
         c.execute('DELETE FROM announcements WHERE id = %s', (id,))
         conn.commit()
         c.close()
