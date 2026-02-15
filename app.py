@@ -7,35 +7,33 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from functools import wraps
 import secrets
+import hmac
+import hashlib
+import time
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# ===== إعدادات الأمان المشددة للـ SESSIONS والـ COOKIES =====
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+# ===== إعدادات الأمان المشددة =====
+# مهم: استخدم SECRET_KEY ثابت في Production!
+if not os.environ.get('SECRET_KEY'):
+    raise ValueError("❌ SECRET_KEY must be set in environment variables for production!")
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 
-# إعدادات الكوكيز - الحماية القصوى
 app.config['SESSION_COOKIE_NAME'] = '3m_sec_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS فقط في Production
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # تغيير من Strict إلى Lax لتجنب المشاكل
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_PATH'] = '/'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
-
-# إعدادات أمان إضافية
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['JSON_SORT_KEYS'] = False
 
-# تتبع محاولات تسجيل الدخول الفاشلة
-login_attempts = {}
-admin_login_attempts = {}
+# Rate Limiting - حفظ في الداتابيس بدل الذاكرة
 MAX_LOGIN_ATTEMPTS = 5
 MAX_ADMIN_ATTEMPTS = 3
 LOCKOUT_TIME = timedelta(minutes=15)
 ADMIN_LOCKOUT_TIME = timedelta(minutes=30)
-
-# تتبع محاولات الوصول المشبوهة
-suspicious_ips = {}
 MAX_SUSPICIOUS_ATTEMPTS = 10
 
 # Database Helpers
@@ -46,16 +44,16 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # الجداول الأساسية
     c.execute('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, role TEXT, device_id TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS subjects (id SERIAL PRIMARY KEY, title TEXT, description TEXT, code TEXT, color TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS lessons (id SERIAL PRIMARY KEY, subject_id INTEGER, title TEXT, url TEXT, type TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS announcements (id SERIAL PRIMARY KEY, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
     
-    # إضافة أعمدة جديدة بأمان (إذا لم تكن موجودة)
     try:
         c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE')
         c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP')
+        c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts INTEGER DEFAULT 0')
+        c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP')
     except:
         pass
     
@@ -69,13 +67,21 @@ def init_db():
         user_agent TEXT
     )''')
     
-    # إنشاء/تحديث حساب الأدمن
+    # جدول Rate Limiting (يبقى بعد Restart)
+    c.execute('''CREATE TABLE IF NOT EXISTS rate_limits (
+        id SERIAL PRIMARY KEY,
+        identifier TEXT UNIQUE,
+        attempts INTEGER DEFAULT 0,
+        last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # حساب الأدمن
     c.execute('SELECT count(*) FROM users WHERE email=%s', ('admin@3minds.edu',))
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (email, password, role, is_active) VALUES (%s, %s, %s, %s)', 
                   ('admin@3minds.edu', generate_password_hash('3Minds@Secure#2026!Admin'), 'admin', True))
     else:
-        c.execute('UPDATE users SET password = %s, is_active = %s WHERE email = %s',
+        c.execute('UPDATE users SET password = %s, is_active = %s, failed_attempts = 0, locked_until = NULL WHERE email = %s',
                   (generate_password_hash('3Minds@Secure#2026!Admin'), True, 'admin@3minds.edu'))
     
     conn.commit()
@@ -85,7 +91,7 @@ def init_db():
 try: 
     init_db()
 except Exception as e:
-    print(f"Database initialization error: {e}")
+    print(f"⚠️ Database initialization error: {e}")
 
 # Telegram Service
 def send_telegram(message):
@@ -98,7 +104,11 @@ def send_telegram(message):
         except: 
             pass
 
-# ===== Security Logging =====
+# ===== Security Helpers =====
+def constant_time_compare(a, b):
+    """مقارنة بوقت ثابت لمنع Timing Attacks"""
+    return hmac.compare_digest(str(a), str(b))
+
 def log_login_attempt(email, ip_address, success, user_agent=''):
     """تسجيل محاولات تسجيل الدخول"""
     try:
@@ -120,28 +130,62 @@ def get_client_ip():
         return request.headers.get('X-Real-IP')
     return request.remote_addr or 'unknown'
 
-def check_suspicious_ip(ip):
-    """فحص IP المشبوه"""
-    if ip == 'unknown':
-        return True
-    if ip in suspicious_ips:
-        attempts, last_attempt = suspicious_ips[ip]
-        if attempts >= MAX_SUSPICIOUS_ATTEMPTS:
-            if datetime.now() - last_attempt < timedelta(hours=24):
-                return False
-            else:
-                suspicious_ips[ip] = [0, datetime.now()]
-    return True
+def check_rate_limit_db(identifier, max_attempts, lockout_time):
+    """فحص Rate Limit من الداتابيس (يبقى بعد Restart)"""
+    try:
+        conn = get_db()
+        c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        c.execute('SELECT attempts, last_attempt FROM rate_limits WHERE identifier = %s', (identifier,))
+        result = c.fetchone()
+        
+        if result:
+            attempts, last_attempt = result['attempts'], result['last_attempt']
+            if attempts >= max_attempts:
+                if datetime.now() - last_attempt < lockout_time:
+                    c.close()
+                    conn.close()
+                    remaining = int((lockout_time - (datetime.now() - last_attempt)).total_seconds() / 60)
+                    return False, f"محظور مؤقتاً. حاول بعد {remaining} دقيقة"
+                else:
+                    # انتهت مدة الحظر
+                    c.execute('UPDATE rate_limits SET attempts = 0, last_attempt = %s WHERE identifier = %s',
+                              (datetime.now(), identifier))
+                    conn.commit()
+        
+        c.close()
+        conn.close()
+        return True, None
+    except Exception as e:
+        print(f"Rate limit check error: {e}")
+        return True, None
 
-def record_suspicious_activity(ip):
-    """تسجيل نشاط مشبوه"""
-    if ip == 'unknown':
-        return
-    if ip in suspicious_ips:
-        attempts, _ = suspicious_ips[ip]
-        suspicious_ips[ip] = [attempts + 1, datetime.now()]
-    else:
-        suspicious_ips[ip] = [1, datetime.now()]
+def record_failed_attempt_db(identifier):
+    """تسجيل محاولة فاشلة في الداتابيس"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''INSERT INTO rate_limits (identifier, attempts, last_attempt) 
+                     VALUES (%s, 1, %s)
+                     ON CONFLICT (identifier) 
+                     DO UPDATE SET attempts = rate_limits.attempts + 1, last_attempt = %s''',
+                  (identifier, datetime.now(), datetime.now()))
+        conn.commit()
+        c.close()
+        conn.close()
+    except Exception as e:
+        print(f"Record attempt error: {e}")
+
+def reset_attempts_db(identifier):
+    """إعادة تعيين المحاولات"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('DELETE FROM rate_limits WHERE identifier = %s', (identifier,))
+        conn.commit()
+        c.close()
+        conn.close()
+    except:
+        pass
 
 # ===== Security Headers Middleware =====
 @app.after_request
@@ -155,68 +199,34 @@ def set_security_headers(response):
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     return response
 
-# ===== دالة فحص محاولات تسجيل الدخول =====
-def check_login_attempts(email, is_admin=False):
-    """فحص إذا الحساب محظور مؤقتاً بسبب محاولات فاشلة كثيرة"""
-    attempts_dict = admin_login_attempts if is_admin else login_attempts
-    max_attempts = MAX_ADMIN_ATTEMPTS if is_admin else MAX_LOGIN_ATTEMPTS
-    lockout_time = ADMIN_LOCKOUT_TIME if is_admin else LOCKOUT_TIME
-    
-    if email in attempts_dict:
-        attempts, last_attempt = attempts_dict[email]
-        if attempts >= max_attempts:
-            if datetime.now() - last_attempt < lockout_time:
-                remaining = int((lockout_time - (datetime.now() - last_attempt)).total_seconds() / 60)
-                return False, f"الحساب محظور مؤقتاً بسبب محاولات فاشلة متعددة. حاول بعد {remaining} دقيقة"
-            else:
-                attempts_dict[email] = [0, datetime.now()]
-    return True, None
-
-def record_failed_login(email, is_admin=False):
-    """تسجيل محاولة فاشلة"""
-    attempts_dict = admin_login_attempts if is_admin else login_attempts
-    if email in attempts_dict:
-        attempts, _ = attempts_dict[email]
-        attempts_dict[email] = [attempts + 1, datetime.now()]
-    else:
-        attempts_dict[email] = [1, datetime.now()]
-
-def reset_login_attempts(email, is_admin=False):
-    """إعادة تعيين المحاولات عند نجاح تسجيل الدخول"""
-    attempts_dict = admin_login_attempts if is_admin else login_attempts
-    if email in attempts_dict:
-        del attempts_dict[email]
-
 # ===== AUTHENTICATION DECORATORS =====
 def login_required(f):
-    """يتطلب تسجيل دخول المستخدم"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return jsonify({'error': 'Unauthorized - Login required'}), 401
+            return jsonify({'error': 'Unauthorized'}), 401
         
         if 'last_activity' in session:
             last_activity = session['last_activity']
             if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
                 session.clear()
-                return jsonify({'error': 'Session expired - Please login again'}), 401
+                return jsonify({'error': 'Session expired'}), 401
         
         session['last_activity'] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
 def admin_required(f):
-    """يتطلب صلاحيات الأدمن فقط"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return jsonify({'error': 'Unauthorized - Login required'}), 401
+            return jsonify({'error': 'Unauthorized'}), 401
         
         if 'last_activity' in session:
             last_activity = session['last_activity']
             if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
                 session.clear()
-                return jsonify({'error': 'Session expired - Please login again'}), 401
+                return jsonify({'error': 'Session expired'}), 401
         
         try:
             conn = get_db()
@@ -227,20 +237,19 @@ def admin_required(f):
             conn.close()
             
             if not user or user['role'] != 'admin':
-                return jsonify({'error': 'Forbidden - Admin access only'}), 403
+                return jsonify({'error': 'Forbidden'}), 403
             
             if user.get('is_active') == False:
                 session.clear()
-                return jsonify({'error': 'Account is disabled'}), 403
+                return jsonify({'error': 'Account disabled'}), 403
         except:
-            return jsonify({'error': 'Database error'}), 500
+            return jsonify({'error': 'Server error'}), 500
         
         session['last_activity'] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
 def admin_page_required(f):
-    """حماية صفحات الأدمن - إعادة توجيه للصفحة الرئيسية"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -260,11 +269,7 @@ def admin_page_required(f):
             c.close()
             conn.close()
             
-            if not user or user['role'] != 'admin':
-                return redirect('/')
-            
-            if user.get('is_active') == False:
-                session.clear()
+            if not user or user['role'] != 'admin' or user.get('is_active') == False:
                 return redirect('/')
         except:
             return redirect('/')
@@ -288,47 +293,55 @@ def admin():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.json
-    email = data.get('email', '').strip()
-    password = data.get('password', '')
-    
-    client_ip = get_client_ip()
-    user_agent = request.headers.get('User-Agent', '')
-    
-    if not check_suspicious_ip(client_ip):
-        return jsonify({'success': False, 'message': 'عنوان IP محظور بسبب نشاط مشبوه'}), 403
-    
-    is_admin_attempt = email == 'admin@3minds.edu'
-    
-    allowed, error_msg = check_login_attempts(email, is_admin_attempt)
-    if not allowed:
-        log_login_attempt(email, client_ip, False, user_agent)
-        record_suspicious_activity(client_ip)
-        return jsonify({'success': False, 'message': error_msg}), 429
-    
     try:
+        data = request.json
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        
+        client_ip = get_client_ip()
+        user_agent = request.headers.get('User-Agent', '')
+        
+        # Rate Limiting من الداتابيس
+        is_admin_attempt = email == 'admin@3minds.edu'
+        identifier = f"login:{email}"
+        max_attempts = MAX_ADMIN_ATTEMPTS if is_admin_attempt else MAX_LOGIN_ATTEMPTS
+        lockout_time = ADMIN_LOCKOUT_TIME if is_admin_attempt else LOCKOUT_TIME
+        
+        allowed, error_msg = check_rate_limit_db(identifier, max_attempts, lockout_time)
+        if not allowed:
+            log_login_attempt(email, client_ip, False, user_agent)
+            return jsonify({'success': False, 'message': error_msg}), 429
+        
         conn = get_db()
         c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         c.execute('SELECT * FROM users WHERE email = %s', (email,))
         user = c.fetchone()
+        
+        # Timing Attack Protection - نفس الوقت حتى لو المستخدم مو موجود
+        time.sleep(0.1)  # تأخير ثابت
         
         if user and check_password_hash(user['password'], password):
             if user.get('is_active') == False:
                 c.close()
                 conn.close()
                 log_login_attempt(email, client_ip, False, user_agent)
-                return jsonify({'success': False, 'message': 'الحساب معطل. اتصل بالإدارة'}), 403
+                return jsonify({'success': False, 'message': 'الحساب معطل'}), 403
             
-            try:
-                c.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.now(), user['id']))
-                conn.commit()
-            except:
-                pass
+            # فحص Account Lock
+            if user.get('locked_until'):
+                if datetime.now() < user['locked_until']:
+                    c.close()
+                    conn.close()
+                    return jsonify({'success': False, 'message': 'الحساب محظور مؤقتاً'}), 429
             
+            # نجح تسجيل الدخول
+            c.execute('UPDATE users SET last_login = %s, failed_attempts = 0, locked_until = NULL WHERE id = %s',
+                      (datetime.now(), user['id']))
+            conn.commit()
             c.close()
             conn.close()
             
-            reset_login_attempts(email, is_admin_attempt)
+            reset_attempts_db(identifier)
             log_login_attempt(email, client_ip, True, user_agent)
             
             session.clear()
@@ -347,28 +360,28 @@ def login():
             
             return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
         
+        # فشل تسجيل الدخول
         if user:
+            # تحديث المحاولات الفاشلة
+            failed = user.get('failed_attempts', 0) + 1
+            locked_until = None
+            if failed >= max_attempts:
+                locked_until = datetime.now() + lockout_time
+            c.execute('UPDATE users SET failed_attempts = %s, locked_until = %s WHERE id = %s',
+                      (failed, locked_until, user['id']))
+            conn.commit()
             c.close()
             conn.close()
+        
+        record_failed_attempt_db(identifier)
+        log_login_attempt(email, client_ip, False, user_agent)
+        
+        # عدم كشف إذا المستخدم موجود أو لا
+        return jsonify({'success': False, 'message': 'بيانات تسجيل الدخول غير صحيحة'}), 401
         
     except Exception as e:
         print(f"Login error: {e}")
         return jsonify({'success': False, 'message': 'خطأ في الخادم'}), 500
-    
-    record_failed_login(email, is_admin_attempt)
-    record_suspicious_activity(client_ip)
-    log_login_attempt(email, client_ip, False, user_agent)
-    
-    attempts_dict = admin_login_attempts if is_admin_attempt else login_attempts
-    max_attempts = MAX_ADMIN_ATTEMPTS if is_admin_attempt else MAX_LOGIN_ATTEMPTS
-    remaining_attempts = max_attempts - attempts_dict.get(email, [0])[0]
-    
-    if remaining_attempts > 0:
-        return jsonify({'success': False, 'message': f'بيانات تسجيل الدخول غير صحيحة. المحاولات المتبقية: {remaining_attempts}'}), 401
-    else:
-        lockout_time = ADMIN_LOCKOUT_TIME if is_admin_attempt else LOCKOUT_TIME
-        lockout_minutes = int(lockout_time.total_seconds() / 60)
-        return jsonify({'success': False, 'message': f'تم تجاوز الحد الأقصى للمحاولات. الحساب محظور مؤقتاً لمدة {lockout_minutes} دقيقة'}), 429
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -382,7 +395,7 @@ def check_session():
             last_activity = session['last_activity']
             if datetime.now() - datetime.fromisoformat(last_activity) > app.config['PERMANENT_SESSION_LIFETIME']:
                 session.clear()
-                return jsonify({'authenticated': False, 'reason': 'session_expired'})
+                return jsonify({'authenticated': False})
         
         return jsonify({
             'authenticated': True,
@@ -403,7 +416,8 @@ def handle_subjects():
             return jsonify({'error': 'Unauthorized'}), 401
             
         data = request.json
-        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)', (data['title'], data['description'], data['code'], data['color']))
+        c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)',
+                  (data['title'], data['description'], data['code'], data['color']))
         conn.commit()
         return jsonify({'success': True})
     
@@ -442,7 +456,7 @@ def handle_subject(id):
         subject = c.fetchone()
         
         if not subject:
-            return jsonify({'error': 'Subject not found'}), 404
+            return jsonify({'error': 'Not found'}), 404
             
         c.execute('SELECT * FROM lessons WHERE subject_id = %s ORDER BY id ASC', (id,))
         lessons = c.fetchall()
@@ -453,8 +467,7 @@ def handle_subject(id):
         })
 
     except Exception as e:
-        print(f"Error handling subject {id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Server error'}), 500
     finally:
         c.close()
         conn.close()
@@ -475,7 +488,8 @@ def add_lesson():
     data = request.json
     conn = get_db()
     c = conn.cursor()
-    c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)', (data['subject_id'], data['title'], data['url'], data['type']))
+    c.execute('INSERT INTO lessons (subject_id, title, url, type) VALUES (%s, %s, %s, %s)',
+              (data['subject_id'], data['title'], data['url'], data['type']))
     conn.commit()
     
     try:
@@ -529,11 +543,12 @@ def add_student():
     conn = get_db()
     c = conn.cursor()
     try:
-        c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)', (data['email'], generate_password_hash(data['password']), 'student'))
+        c.execute('INSERT INTO users (email, password, role) VALUES (%s, %s, %s)',
+                  (data['email'], generate_password_hash(data['password']), 'student'))
         conn.commit()
         return jsonify({'success': True})
     except:
-        return jsonify({'success': False, 'error': 'User already exists'})
+        return jsonify({'success': False, 'error': 'User exists'})
     finally:
         c.close()
         conn.close()
@@ -556,7 +571,8 @@ def change_password():
     data = request.json
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE users SET password = %s WHERE id = %s', (generate_password_hash(data['password']), data['user_id']))
+    c.execute('UPDATE users SET password = %s WHERE id = %s',
+              (generate_password_hash(data['password']), data['user_id']))
     conn.commit()
     c.close()
     conn.close()
