@@ -2,12 +2,15 @@ import os
 import requests
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from functools import wraps
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123-CHANGE-THIS-IN-PRODUCTION')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Database Helpers
 def get_db():
@@ -43,14 +46,68 @@ def send_telegram(message):
             requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
         except: pass
 
+# ===== AUTHENTICATION DECORATORS =====
+def login_required(f):
+    """يتطلب تسجيل دخول المستخدم"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Unauthorized - Login required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """يتطلب صلاحيات الأدمن فقط"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Unauthorized - Login required'}), 401
+        
+        # التحقق من أن المستخدم أدمن
+        conn = get_db()
+        c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        c.execute('SELECT role FROM users WHERE id = %s', (session['user_id'],))
+        user = c.fetchone()
+        c.close()
+        conn.close()
+        
+        if not user or user['role'] != 'admin':
+            return jsonify({'error': 'Forbidden - Admin access only'}), 403
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_page_required(f):
+    """حماية صفحات الأدمن - إعادة توجيه للصفحة الرئيسية"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect('/')
+        
+        conn = get_db()
+        c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        c.execute('SELECT role FROM users WHERE id = %s', (session['user_id'],))
+        user = c.fetchone()
+        c.close()
+        conn.close()
+        
+        if not user or user['role'] != 'admin':
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Routes
 @app.route('/')
 @app.route('/login')
-@app.route('/admin')
 @app.route('/subjects')
 @app.route('/subject/<int:id>')
-@app.route('/viewer')
 def index(id=None):
+    return render_template('index.html')
+
+@app.route('/admin')
+@admin_page_required
+def admin():
     return render_template('index.html')
 
 @app.route('/api/login', methods=['POST'])
@@ -64,14 +121,42 @@ def login():
     conn.close()
     
     if user and check_password_hash(user['password'], data.get('password')):
+        # حفظ بيانات المستخدم في الـ session
+        session['user_id'] = user['id']
+        session['user_email'] = user['email']
+        session['user_role'] = user['role']
+        
         return jsonify({'success': True, 'user': {'id': user['id'], 'email': user['email'], 'role': user['role']}})
     return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({'success': True})
+
+@app.route('/api/check-session', methods=['GET'])
+def check_session():
+    """للتحقق من حالة تسجيل الدخول"""
+    if 'user_id' in session:
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': session['user_id'],
+                'email': session['user_email'],
+                'role': session['user_role']
+            }
+        })
+    return jsonify({'authenticated': False})
 
 @app.route('/api/subjects', methods=['GET', 'POST'])
 def handle_subjects():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     if request.method == 'POST':
+        # حماية إضافة المواد - للأدمن فقط
+        if 'user_id' not in session or session.get('user_role') != 'admin':
+            return jsonify({'error': 'Unauthorized'}), 401
+            
         data = request.json
         c.execute('INSERT INTO subjects (title, description, code, color) VALUES (%s, %s, %s, %s)', (data['title'], data['description'], data['code'], data['color']))
         conn.commit()
@@ -90,12 +175,20 @@ def handle_subject(id):
     
     try:
         if request.method == 'DELETE':
+            # حماية حذف المواد - للأدمن فقط
+            if 'user_id' not in session or session.get('user_role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 401
+                
             c.execute('DELETE FROM lessons WHERE subject_id = %s', (id,))
             c.execute('DELETE FROM subjects WHERE id = %s', (id,))
             conn.commit()
             return jsonify({'success': True})
             
         if request.method == 'PUT':
+            # حماية تعديل المواد - للأدمن فقط
+            if 'user_id' not in session or session.get('user_role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 401
+                
             data = request.json
             c.execute('UPDATE subjects SET title=%s, code=%s, description=%s, color=%s WHERE id=%s', 
                      (data['title'], data['code'], data['description'], data['color'], id))
@@ -135,6 +228,7 @@ def get_lessons(id):
     return jsonify([dict(l) for l in lessons])
 
 @app.route('/api/admin/add-lesson', methods=['POST'])
+@admin_required
 def add_lesson():
     data = request.json
     conn = get_db()
@@ -155,6 +249,7 @@ def add_lesson():
     return jsonify({'success': True})
 
 @app.route('/api/lessons/<int:id>', methods=['DELETE'])
+@admin_required
 def delete_lesson(id):
     conn = get_db()
     c = conn.cursor()
@@ -165,6 +260,7 @@ def delete_lesson(id):
     return jsonify({'success': True})
 
 @app.route('/api/users', methods=['GET', 'DELETE'])
+@admin_required
 def handle_users():
     conn = get_db()
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -184,6 +280,7 @@ def handle_users():
     return jsonify([dict(u) for u in users])
 
 @app.route('/api/admin/add-student', methods=['POST'])
+@admin_required
 def add_student():
     data = request.json
     conn = get_db()
@@ -199,6 +296,7 @@ def add_student():
         conn.close()
 
 @app.route('/api/admin/reset-device', methods=['POST'])
+@admin_required
 def reset_device():
     data = request.json
     conn = get_db()
@@ -210,6 +308,7 @@ def reset_device():
     return jsonify({'success': True})
 
 @app.route('/api/change-password', methods=['POST'])
+@login_required
 def change_password():
     data = request.json
     conn = get_db()
@@ -226,6 +325,10 @@ def handle_announcements():
     c = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
     if request.method == 'POST':
+        # حماية إضافة الإعلانات - للأدمن فقط
+        if 'user_id' not in session or session.get('user_role') != 'admin':
+            return jsonify({'error': 'Unauthorized'}), 401
+            
         data = request.json
         c.execute('INSERT INTO announcements (content) VALUES (%s)', (data['content'],))
         conn.commit()
@@ -236,6 +339,10 @@ def handle_announcements():
         return jsonify({'success': True})
         
     if request.method == 'PUT':
+        # حماية تعديل الإعلانات - للأدمن فقط
+        if 'user_id' not in session or session.get('user_role') != 'admin':
+            return jsonify({'error': 'Unauthorized'}), 401
+            
         data = request.json
         id = request.args.get('id')
         c.execute('UPDATE announcements SET content = %s WHERE id = %s', (data['content'], id))
@@ -245,6 +352,10 @@ def handle_announcements():
         return jsonify({'success': True})
         
     if request.method == 'DELETE':
+        # حماية حذف الإعلانات - للأدمن فقط
+        if 'user_id' not in session or session.get('user_role') != 'admin':
+            return jsonify({'error': 'Unauthorized'}), 401
+            
         id = request.args.get('id')
         c.execute('DELETE FROM announcements WHERE id = %s', (id,))
         conn.commit()
@@ -260,4 +371,3 @@ def handle_announcements():
 
 if __name__ == '__main__':
     app.run()
-
