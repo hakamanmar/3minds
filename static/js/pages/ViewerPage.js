@@ -1,6 +1,6 @@
-/* ViewerPage.js - عارض الملفات مع تحميل آمن */
 import { i18n } from '../i18n.js';
 
+// دالة لاستخراج FILE_ID من رابط Google Drive
 const extractFileId = (url) => {
     if (!url) return null;
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -12,12 +12,15 @@ const ViewerPage = async (params) => {
     const fileName = decodeURIComponent(params.name || 'ملف');
     const fileId = extractFileId(fileUrl);
     
+    // رابط العرض المدمج من Google Drive
     const embedUrl = fileId 
         ? `https://drive.google.com/file/d/${fileId}/preview`
         : fileUrl;
 
+    // تأكد من وجود امتداد .pdf
     const safeFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
     
+    // رابط التحميل المُحسّن (يستخدم confirm parameter لتجنب مشاكل bin)
     const downloadUrl = fileId
         ? `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`
         : fileUrl;
@@ -27,6 +30,7 @@ const ViewerPage = async (params) => {
             <button class="btn" onclick="window.history.back()" style="color: var(--text-muted); padding: 0.5rem 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
                 <i class="ph ph-arrow-right"></i> رجوع
             </button>
+            
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                 <button id="downloadBtn" class="btn" style="background: #10b981; color: white; padding: 0.5rem 1.25rem; border-radius: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: none;">
                     <i class="ph ph-download-simple"></i>
@@ -57,19 +61,27 @@ ViewerPage.init = (params) => {
     const fileUrl = decodeURIComponent(params.url || '');
     const fileName = decodeURIComponent(params.name || 'ملف');
     const fileId = extractFileId(fileUrl);
+    
+    // تأكد من وجود امتداد .pdf
     const safeFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+    
+    // رابط التحميل المُحسّن
     const downloadUrl = fileId
         ? `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`
         : fileUrl;
 
+    // زر التحميل مع معالجة خاصة
     const downloadBtn = document.getElementById('downloadBtn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
+            // إنشاء عنصر <a> مؤقت للتحميل
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = safeFileName;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
+            
+            // إضافة للـ DOM، ضغط، ثم حذف
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
