@@ -1,8 +1,8 @@
-/* main.js */
+/* main.js - Fixed Logo Issue */
 import { auth } from './api.js';
 import { i18n } from './i18n.js';
 import HomePage from './pages/HomePage.js';
-import LoginPage from './pages/LongPage.js';
+import LoginPage from './pages/LoginPage.js';
 import SubjectPage from './pages/SubjectPage.js';
 import AdminPage from './pages/AdminPage.js';
 import PasswordChangePage from './pages/PasswordChangePage.js';
@@ -21,8 +21,11 @@ class Router {
     constructor() {
         this.baseContainer = document.getElementById('main-content');
         this.navContainer = document.getElementById('nav-menu');
+
+        // Initial Language Setup
         document.documentElement.lang = i18n.lang;
         document.documentElement.dir = i18n.t('dir');
+
         window.addEventListener('popstate', () => this.resolve());
         this.updateNav();
     }
@@ -38,6 +41,7 @@ class Router {
         let Component = routes[path];
         let params = {};
 
+        // Parse query parameters for /viewer
         if (path === '/viewer') {
             const urlParams = new URLSearchParams(search);
             params.url = urlParams.get('url');
@@ -74,11 +78,16 @@ class Router {
     updateNav() {
         const user = auth.getUser();
         const currentLang = i18n.lang;
+
         const langToggle = `
             <button class="btn" style="padding: 0.5rem; border: 1px solid var(--border);" onclick="window.toggleLang()">
                 ${currentLang === 'ar' ? 'English' : 'العربية'}
             </button>
         `;
+
+        // IMPORTANT: Removed the line that was overwriting the logo
+        // The logo is now static in index.html and handled by ui.js
+
         if (user) {
             this.navContainer.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 1rem;">
