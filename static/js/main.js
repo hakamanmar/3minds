@@ -1,31 +1,26 @@
-/* main.js - Fixed Logo Issue */
+/* main.js */
 import { auth } from './api.js';
 import { i18n } from './i18n.js';
 import HomePage from './pages/HomePage.js';
-import LoginPage from './pages/LoginPage.js';
+import LoginPage from './pages/LongPage.js';
 import SubjectPage from './pages/SubjectPage.js';
 import AdminPage from './pages/AdminPage.js';
 import PasswordChangePage from './pages/PasswordChangePage.js';
-import ViewerPage from './pages/ViewerPage.js';
 
 const routes = {
     '/': HomePage,
     '/login': LoginPage,
     '/admin': AdminPage,
     '/subject/:id': SubjectPage,
-    '/change-password': PasswordChangePage,
-    '/viewer': ViewerPage
+    '/change-password': PasswordChangePage
 };
 
 class Router {
     constructor() {
         this.baseContainer = document.getElementById('main-content');
         this.navContainer = document.getElementById('nav-menu');
-
-        // Initial Language Setup
         document.documentElement.lang = i18n.lang;
         document.documentElement.dir = i18n.t('dir');
-
         window.addEventListener('popstate', () => this.resolve());
         this.updateNav();
     }
@@ -37,16 +32,8 @@ class Router {
 
     async resolve() {
         const path = window.location.pathname;
-        const search = window.location.search;
         let Component = routes[path];
         let params = {};
-
-        // Parse query parameters for /viewer
-        if (path === '/viewer') {
-            const urlParams = new URLSearchParams(search);
-            params.url = urlParams.get('url');
-            params.name = urlParams.get('name');
-        }
 
         if (!Component) {
             if (path.startsWith('/subject/')) {
@@ -84,9 +71,6 @@ class Router {
                 ${currentLang === 'ar' ? 'English' : 'العربية'}
             </button>
         `;
-
-        // IMPORTANT: Removed the line that was overwriting the logo
-        // The logo is now static in index.html and handled by ui.js
 
         if (user) {
             this.navContainer.innerHTML = `
