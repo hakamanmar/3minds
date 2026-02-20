@@ -1,4 +1,4 @@
-/* AdminPage.js - Includes Student Deletion UI */
+/* AdminPage.js */
 import { api } from '../api.js';
 import { i18n } from '../i18n.js';
 import { UI } from '../ui.js';
@@ -13,7 +13,6 @@ const AdminPage = async () => {
         return `<div class="card error-card" style="padding: 2rem; color: #ef4444;"><h3>${i18n.t('error')}</h3><p>${e.message}</p></div>`;
     }
 
-    // Global Functions for Buttons
     window.deleteAnnouncement = async (id) => {
         if(confirm('حذف التبليغ؟')) { await api.deleteAnnouncement(id); location.reload(); }
     };
@@ -27,8 +26,6 @@ const AdminPage = async () => {
         });
         if(data) location.reload();
     };
-    
-    // NEW: Delete Student Function
     window.deleteStudent = async (id, email) => {
         if(confirm(`هل أنت متأكد من حذف الطالب: ${email}؟\nسيتم حذفه نهائياً.`)) {
             await api.deleteUser(id);
@@ -62,7 +59,7 @@ const AdminPage = async () => {
                             </div>
                         </div>
                     `).join('')}
-                    ${announcements.length > 0 ? `<div style="margin-top:20px; text-align:center;"><button onclick="if(confirm('حذف الكل؟')){fetch('/api/announcements').then(r=>r.json()).then(d=>{d.forEach(a=>fetch('/api/announcements?id='+a.id,{method:'DELETE'}));setTimeout(()=>location.reload(),1000)})} " class="btn" style="background:#ef4444;color:white;padding:0.5rem 2rem;">⚠️ حذف الكل</button></div>` : ''}
+                    ${announcements.length > 0 ? `<div style="margin-top:20px; text-align:center;"><button onclick="if(confirm('حذف الكل؟')){fetch('/api/announcements').then(r=>r.json()).then(d=>{d.forEach(a=>fetch('/api/announcements?id='+a.id,{method:'DELETE'}));setTimeout(()=>location.reload(),1000)})}" class="btn" style="background:#ef4444;color:white;padding:0.5rem 2rem;">⚠️ حذف الكل</button></div>` : ''}
                 </div>
             </div>
 
@@ -91,7 +88,6 @@ const AdminPage = async () => {
                             </div>
                             <div style="margin-top: 1rem; display: flex; gap: 5px;">
                                 <button class="btn reset-device-btn" data-id="${u.id}" style="border: 1px solid var(--border); flex: 1;">🔄 Reset Device</button>
-                                <!-- زر حذف الطالب الجديد -->
                                 <button onclick="window.deleteStudent('${u.id}', '${u.email}')" class="btn" style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c;">🗑️ حذف</button>
                             </div>
                         </div>
@@ -103,7 +99,6 @@ const AdminPage = async () => {
 };
 
 AdminPage.init = () => {
-    // Add Announce
     const addAnn = document.getElementById('add-announcement-btn');
     if(addAnn) addAnn.onclick = async () => {
         const d = await UI.modal('تبليغ جديد', `<textarea id="ac" style="height:100px"></textarea>`, async()=>{
@@ -112,18 +107,16 @@ AdminPage.init = () => {
         if(d) location.reload();
     };
 
-    // Add Subject
     const addSub = document.getElementById('add-subject-btn');
     if(addSub) addSub.onclick = async () => {
         const c = `<input id="nst" placeholder="Name" class="mb-4"/><input id="nsc" placeholder="Code" class="mb-4"/><textarea id="nsd" placeholder="Desc" class="mb-4"></textarea><input type="color" id="nsco" value="#4f46e5" style="height:50px"/>`;
         const d = await UI.modal('مادة جديدة', c, async()=>{
-             const t=document.getElementById('nst').value, co=document.getElementById('nsc').value, de=document.getElementById('nsd').value, col=document.getElementById('nsco').value;
-             if(!t)return false; await api.addSubject({title:t,code:co,description:de,color:col}); return true;
+            const t=document.getElementById('nst').value, co=document.getElementById('nsc').value, de=document.getElementById('nsd').value, col=document.getElementById('nsco').value;
+            if(!t)return false; await api.addSubject({title:t,code:co,description:de,color:col}); return true;
         });
         if(d) location.reload();
     };
 
-    // Add Student
     const addStd = document.getElementById('add-student-btn');
     if(addStd) addStd.onclick = async () => {
         const d = await UI.modal('طالب جديد', `<input id="nse" placeholder="Email" class="mb-4"/><input type="password" id="nsp" placeholder="Pass"/>`, async()=>{
@@ -133,7 +126,6 @@ AdminPage.init = () => {
         if(d) location.reload();
     };
 
-    // Edit/Delete Subject Listeners
     document.querySelectorAll('.edit-sub-btn').forEach(b => b.onclick = async () => {
         const {id,t,c:co,d:de,col} = b.dataset;
         const ht = `<input id="est" value="${t}" class="mb-4"/><input id="esc" value="${co}" class="mb-4"/><textarea id="esd" class="mb-4">${de}</textarea><input type="color" id="esco" value="${col}" style="height:50px"/>`;
@@ -143,19 +135,18 @@ AdminPage.init = () => {
         });
         if(r) location.reload();
     });
-    
+
     document.querySelectorAll('.del-sub-btn').forEach(b => b.onclick = async () => {
         if(confirm('حذف المادة؟')) { await api.deleteSubject(b.dataset.id); location.reload(); }
     });
 
-    // Add Lesson
     document.querySelectorAll('.add-lesson-btn').forEach(b => b.onclick = async () => {
         const sid = b.dataset.id;
         const d = await UI.modal('درس جديد', `<input id="lt" placeholder="Title" class="mb-4"/><input id="lu" placeholder="URL" class="mb-4"/><select id="lty"><option value="PDF">PDF</option><option value="Video">Video</option></select>`, async()=>{
             const t=document.getElementById('lt').value, u=document.getElementById('lu').value, y=document.getElementById('lty').value; if(!t||!u)return false;
-            await fetch('/api/admin/add-lesson', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject_id:sid,title:t,url:u,type:y})}); return true;
+            await fetch('/api/admin/add-lesson', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject_id:parseInt(sid),title:t,url:u,type:y})}); return true;
         });
-        if(d) { UI.toast('تمت الإضافة'); location.reload(); } 
+        if(d) { UI.toast('تمت الإضافة'); location.reload(); }
     });
 
     document.querySelectorAll('.reset-device-btn').forEach(b => b.onclick = async () => { if(confirm('Reset?')) { await api.resetDevice(b.dataset.id); location.reload(); } });
