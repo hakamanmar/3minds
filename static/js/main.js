@@ -6,13 +6,15 @@ import LoginPage from './pages/LongPage.js';
 import SubjectPage from './pages/SubjectPage.js';
 import AdminPage from './pages/AdminPage.js';
 import PasswordChangePage from './pages/PasswordChangePage.js';
+import ViewerPage from './pages/ViewerPage.js';
 
 const routes = {
     '/': HomePage,
     '/login': LoginPage,
     '/admin': AdminPage,
     '/subject/:id': SubjectPage,
-    '/change-password': PasswordChangePage
+    '/change-password': PasswordChangePage,
+    '/viewer': ViewerPage
 };
 
 class Router {
@@ -32,8 +34,15 @@ class Router {
 
     async resolve() {
         const path = window.location.pathname;
+        const search = window.location.search;
         let Component = routes[path];
         let params = {};
+
+        if (path === '/viewer') {
+            const urlParams = new URLSearchParams(search);
+            params.url = urlParams.get('url');
+            params.name = urlParams.get('name');
+        }
 
         if (!Component) {
             if (path.startsWith('/subject/')) {
@@ -65,13 +74,11 @@ class Router {
     updateNav() {
         const user = auth.getUser();
         const currentLang = i18n.lang;
-
         const langToggle = `
             <button class="btn" style="padding: 0.5rem; border: 1px solid var(--border);" onclick="window.toggleLang()">
                 ${currentLang === 'ar' ? 'English' : 'العربية'}
             </button>
         `;
-
         if (user) {
             this.navContainer.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 1rem;">
